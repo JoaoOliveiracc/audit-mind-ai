@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#
+# Pre-commit de segurança do Auditor-IA.
+# Bloqueia (1) o commit de arquivos .env reais e (2) segredos com formato de
+# chave real em qualquer arquivo versionado (incluindo .env.example).
+#
+# Ative uma vez por clone com:  git config core.hooksPath .githooks
+#
+set -euo pipefail
+
+RED='\033[0;31m'; YEL='\033[0;33m'; NC='\033[0m'
+fail=0
+
+# Arquivos staged (adicionados/modificados), lidando com nomes com espaço.
+mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM)
+
+# --- 1) Bloqueia arquivos .env reais (permite exemplos/templates) -------------
+for f in "${staged[@]}"; do
+  base="$(basename "$f")"
+  case "$base" in
+    .env.example|.env.sample|.env.template) : ;;  # permitidos
+    .env|.env.*)
+      printf "${RED}✗ Segredo:${NC} arquivo de ambiente '%s' não deve ser commitado.\n" "$f"
+      fail=1
+      ;;
+  esac
+done
+
+# --- 2) Escaneia o conteúdo staged por chaves reais ---------------------------
+# Padrões de alta confiança (não casam com placeholders como 'sk-ant-...').
+patterns=(
+  'sk-ant-api03-[A-Za-z0-9_-]{20,}'      # Anthropic
+  'AIza[0-9A-Za-z_-]{35}'                # Google
+  'sk-proj-[A-Za-z0-9_-]{20,}'           # OpenAI (project)
+  'sk-[A-Za-z0-9]{40,}'                  # OpenAI (legado)
+  'gsk_[A-Za-z0-9]{40,}'                 # Groq
+  'xox[baprs]-[A-Za-z0-9-]{10,}'         # Slack
+  '-----BEGIN[A-Z ]*PRIVATE KEY-----'    # chave privada
+)
+
+for f in "${staged[@]}"; do
+  # Apenas o conteúdo que está sendo adicionado (linhas '+').
+  added="$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++' || true)"
+  [ -z "$added" ] && continue
+  for pat in "${patterns[@]}"; do
+    if printf '%s' "$added" | grep -Eq "$pat"; then
+      printf "${RED}✗ Segredo:${NC} possível chave real em '%s' (padrão: %s).\n" "$f" "$pat"
+      fail=1
+    fi
+  done
+done
+
+if [ "$fail" -ne 0 ]; then
+  printf "\n${YEL}Commit bloqueado por segurança.${NC} Remova o segredo, use um placeholder\n"
+  printf "no .env.example e mantenha valores reais apenas no .env (ignorado pelo git).\n"
+  printf "Para pular intencionalmente (não recomendado): git commit --no-verify\n"
+  exit 1
+fi
+
+exit 0

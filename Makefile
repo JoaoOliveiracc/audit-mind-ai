@@ -1,7 +1,11 @@
-.PHONY: install test lint run clean
+.PHONY: install hooks test lint run clean
 
-install:
+install: hooks
 	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
+
+hooks:
+	@# Ativa o hook de segurança versionado (bloqueia commit de .env e segredos).
+	git config core.hooksPath .githooks && echo "hook de pre-commit ativado (.githooks)"
 
 test:
 	. .venv/bin/activate && pytest -q
