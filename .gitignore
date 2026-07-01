@@ -1,0 +1,19 @@
+# Ambiente
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Saída de auditorias
+audit-reports/
+*.audit.md
+*.audit.html
+
+# IDE
+.vscode/
+.idea/

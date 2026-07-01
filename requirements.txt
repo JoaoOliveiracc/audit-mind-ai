@@ -1,0 +1,19 @@
+# Núcleo do agent
+langgraph>=0.2.60
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-anthropic>=0.3.0
+
+# Modelagem / validação
+pydantic>=2.7
+pydantic-settings>=2.3
+
+# CLI interativo
+typer>=0.12
+rich>=13.7
+
+# Relatório
+jinja2>=3.1
+
+# Ambiente
+python-dotenv>=1.0
