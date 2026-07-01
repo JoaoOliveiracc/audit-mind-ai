@@ -67,10 +67,11 @@ auditor audit /caminho/do/projeto --no-questions
 Instale o pacote do provedor e selecione-o por env ou flag:
 
 ```bash
-pip install -e ".[openai]"          # ou .[google] / .[groq] / .[ollama] / .[all-providers]
+pip install -e ".[openai]"          # ou .[google] / .[groq] / .[deepseek] / .[ollama] / .[all-providers]
 
 auditor audit /proj --provider openai       --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash
+auditor audit /proj --provider deepseek     --model deepseek-chat
 auditor audit /proj --provider ollama       --model qwen2.5-coder:14b   # local, sem chave
 
 auditor providers                   # lista provedores, pacotes e credenciais

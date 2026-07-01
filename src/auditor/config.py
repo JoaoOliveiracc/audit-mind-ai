@@ -24,6 +24,7 @@ PROVIDER_ENV_VAR: dict[str, str | None] = {
     "cohere": "COHERE_API_KEY",
     "together": "TOGETHER_API_KEY",
     "fireworks": "FIREWORKS_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
     "bedrock": None,  # usa credenciais AWS
     "ollama": None,  # local
 }
@@ -40,6 +41,7 @@ PROVIDER_PACKAGE: dict[str, str] = {
     "cohere": "langchain-cohere",
     "together": "langchain-together",
     "fireworks": "langchain-fireworks",
+    "deepseek": "langchain-deepseek",
     "bedrock": "langchain-aws",
     "ollama": "langchain-ollama",
 }

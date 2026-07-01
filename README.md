@@ -56,12 +56,13 @@ Cada provedor exige seu pacote de integração e sua credencial:
 
 ```bash
 # instale o(s) provedor(es) desejado(s)
-pip install -e ".[openai]"        # ou .[google], .[groq], .[ollama], .[all-providers]
+pip install -e ".[openai]"        # ou .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
 
 # use por flag (sobrescreve o .env)
 auditor audit /proj --provider openai      --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash
 auditor audit /proj --provider groq        --model llama-3.3-70b-versatile
+auditor audit /proj --provider deepseek    --model deepseek-chat
 auditor audit /proj --provider ollama      --model qwen2.5-coder:14b   # 100% local
 
 auditor providers   # lista todos os provedores, pacotes e credenciais
@@ -91,6 +92,7 @@ pytest -q          # testes de fumaça (offline, sem LLM)
 - [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md) — design do agent e decisões (best practices LangChain).
 - [`docs/USAGE.md`](docs/USAGE.md) — guia de uso, configuração e extensão.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — evolução planejada.
+- [`SECURITY.md`](SECURITY.md) — política de segredos e proteções (hook de pre-commit).
 
 ## ⚙️ Configuração
 

@@ -38,6 +38,7 @@ google = ["langchain-google-genai>=2.0"]
 groq = ["langchain-groq>=0.2"]
 mistral = ["langchain-mistralai>=0.2"]
 ollama = ["langchain-ollama>=0.2"]
+deepseek = ["langchain-deepseek>=1.0"]
 aws = ["langchain-aws>=0.2"]
 # Instala os provedores mais comuns de uma vez.
 all-providers = [
@@ -46,6 +47,7 @@ all-providers = [
     "langchain-groq>=0.2",
     "langchain-mistralai>=0.2",
     "langchain-ollama>=0.2",
+    "langchain-deepseek>=1.0",
 ]
 
 [project.scripts]
