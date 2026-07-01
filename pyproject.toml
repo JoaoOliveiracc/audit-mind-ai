@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auditor-ia"
+version = "0.1.0"
+description = "Agent de auditoria de projetos de desenvolvimento, agnóstico de stack, construído com LangGraph + LangChain."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "João Monteiro", email = "joao.monteiro@fabricainfo.com" }]
+keywords = ["langchain", "langgraph", "agent", "code-audit", "security", "quality"]
+
+dependencies = [
+    "langgraph>=0.2.60",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-anthropic>=0.3.0",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "typer>=0.12",
+    "rich>=13.7",
+    "jinja2>=3.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+# Provedores de LLM adicionais (Anthropic já vem no núcleo).
+openai = ["langchain-openai>=0.2"]
+google = ["langchain-google-genai>=2.0"]
+groq = ["langchain-groq>=0.2"]
+mistral = ["langchain-mistralai>=0.2"]
+ollama = ["langchain-ollama>=0.2"]
+aws = ["langchain-aws>=0.2"]
+# Instala os provedores mais comuns de uma vez.
+all-providers = [
+    "langchain-openai>=0.2",
+    "langchain-google-genai>=2.0",
+    "langchain-groq>=0.2",
+    "langchain-mistralai>=0.2",
+    "langchain-ollama>=0.2",
+]
+
+[project.scripts]
+auditor = "auditor.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

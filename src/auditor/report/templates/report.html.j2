@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auditoria — Auditor-IA</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --text:#e6e9ef; --muted:#9aa4b2;
+    --border:#2a2f3a; --accent:#6ea8fe;
+    --critical:#ff4d4f; --high:#ff9f43; --medium:#ffd43b; --low:#4dabf7; --info:#868e96;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:26px;margin:0 0 4px} h2{font-size:20px;margin:36px 0 14px;
+    border-bottom:1px solid var(--border);padding-bottom:8px}
+  h3{font-size:16px;margin:22px 0 8px}
+  a{color:var(--accent)}
+  code{background:var(--panel2);padding:2px 6px;border-radius:5px;font-size:13px}
+  pre{background:#0b0d11;border:1px solid var(--border);border-radius:8px;
+    padding:12px 14px;overflow:auto;font-size:13px}
+  .meta{color:var(--muted);font-size:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:18px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+  .score{display:flex;align-items:center;gap:20px;background:var(--panel);
+    border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin:18px 0}
+  .score .num{font-size:44px;font-weight:700}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+    font-size:12px;font-weight:600;color:#0b0d11}
+  .b-critical{background:var(--critical)} .b-high{background:var(--high)}
+  .b-medium{background:var(--medium)} .b-low{background:var(--low);color:#fff}
+  .b-info{background:var(--info);color:#fff}
+  .finding{background:var(--panel);border:1px solid var(--border);border-left-width:4px;
+    border-radius:10px;padding:16px 18px;margin:14px 0}
+  .finding.sev-critical{border-left-color:var(--critical)}
+  .finding.sev-high{border-left-color:var(--high)}
+  .finding.sev-medium{border-left-color:var(--medium)}
+  .finding.sev-low{border-left-color:var(--low)}
+  .finding.sev-info{border-left-color:var(--info)}
+  .finding .loc{color:var(--muted);font-size:13px}
+  .rec{background:var(--panel2);border-radius:8px;padding:10px 12px;margin-top:10px}
+  .summary{white-space:pre-wrap}
+  table{border-collapse:collapse;width:100%} th,td{border:1px solid var(--border);
+    padding:8px 12px;text-align:left} th{background:var(--panel2)}
+  .foot{margin-top:50px;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Relatório de Auditoria</h1>
+  <div class="meta">
+    Projeto: <code>{{ project_path }}</code> · Gerado em {{ generated_at }} · Auditor-IA
+  </div>
+
+  <div class="score">
+    <div class="num">{{ health_score }}<span style="font-size:20px;color:var(--muted)">/100</span></div>
+    <div>
+      <div style="font-weight:600">Pontuação de saúde</div>
+      <div class="meta">{{ total_findings }} achado(s) no total</div>
+      <div class="badges">
+        {% for sev in severity_order %}
+        <span class="badge b-{{ sev }}">{{ severity_label[sev] }}: {{ counts.get(sev, 0) }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {% if user_goal %}<p class="meta"><strong>Objetivo:</strong> {{ user_goal }}</p>{% endif %}
+
+  <h2>Resumo Executivo</h2>
+  <div class="summary">{{ executive_summary }}</div>
+
+  <h2>Perfil Técnico Detectado</h2>
+  <div class="grid">
+    <div class="card"><div class="meta">Arquivos</div><strong>{{ stack_profile.total_files or 0 }}</strong></div>
+    <div class="card"><div class="meta">LOC (aprox.)</div><strong>{{ stack_profile.total_loc or 0 }}</strong></div>
+    <div class="card"><div class="meta">Testes</div><strong>{{ 'Sim' if stack_profile.has_tests else 'Não' }}</strong></div>
+    <div class="card"><div class="meta">CI/CD</div><strong>{{ 'Sim' if stack_profile.has_ci else 'Não' }}</strong></div>
+    <div class="card"><div class="meta">Docker</div><strong>{{ 'Sim' if stack_profile.has_docker else 'Não' }}</strong></div>
+    <div class="card"><div class="meta">Git</div><strong>{{ 'Sim' if stack_profile.has_git else 'Não' }}</strong></div>
+  </div>
+  <p><strong>Linguagens:</strong>
+    {% for lang, n in (stack_profile.languages or {}).items() %}<code>{{ lang }} ({{ n }})</code> {% endfor %}</p>
+  <p><strong>Frameworks:</strong>
+    {% for fw in stack_profile.frameworks or [] %}<code>{{ fw }}</code> {% endfor %}</p>
+
+  {% if user_context %}
+  <h2>Contexto Informado pelo Usuário</h2>
+  <table><tr><th>Pergunta</th><th>Resposta</th></tr>
+    {% for q, a in user_context.items() %}<tr><td>{{ q }}</td><td>{{ a }}</td></tr>{% endfor %}
+  </table>
+  {% endif %}
+
+  <h2>Resumo por Dimensão</h2>
+  {% for d in dimension_summaries %}
+    <h3>{{ d.dimension | title }}</h3>
+    <div class="summary">{{ d.summary }}</div>
+  {% endfor %}
+
+  <h2>Achados Detalhados</h2>
+  {% if not findings %}<p>Nenhum achado registrado.</p>{% endif %}
+  {% for f in findings %}
+  <div class="finding sev-{{ f.severity }}">
+    <span class="badge b-{{ f.severity }}">{{ severity_label[f.severity] }}</span>
+    <h3 style="display:inline;margin-left:6px">{{ f.title }}</h3>
+    <div class="loc">
+      Dimensão: {{ f.dimension }}
+      {% if f.file %}· <code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code>{% endif %}
+      · Confiança: {{ '%.0f'|format((f.confidence or 0)*100) }}%
+    </div>
+    <p>{{ f.description }}</p>
+    {% if f.evidence %}<pre>{{ f.evidence }}</pre>{% endif %}
+    <div class="rec"><strong>Recomendação:</strong> {{ f.recommendation }}</div>
+  </div>
+  {% endfor %}
+
+  <div class="foot">Gerado automaticamente pelo Auditor-IA · LangGraph + Anthropic Claude</div>
+</div>
+</body>
+</html>

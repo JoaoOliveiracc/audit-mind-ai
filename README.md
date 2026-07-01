@@ -1,0 +1,103 @@
+# Auditor-IA 🕵️
+
+Agent de **auditoria de projetos de desenvolvimento**, agnóstico de stack, construído com **LangGraph + LangChain** e **multi-provider de LLM** (Anthropic, OpenAI, Google, Groq, Mistral, Ollama local, Bedrock…).
+
+O agent descobre a stack do projeto, conversa com você para esclarecer o escopo, executa investigadores especializados por dimensão (segurança, qualidade, arquitetura, testes, dependências, etc.) e emite um **relatório completo em Markdown e HTML**.
+
+---
+
+## ✨ Características
+
+- **Agnóstico de stack** — detecta automaticamente linguagens, frameworks e gerenciadores de pacote (Python, Node, Go, Rust, Java, PHP, Ruby, .NET, e mais).
+- **Multi-provider de LLM** — troca de provedor por variável de ambiente ou flag de CLI (`--provider`), via `init_chat_model`. Suporta Anthropic, OpenAI, Google, Groq, Mistral, Ollama (local), Bedrock, entre outros.
+- **Human-in-the-loop** — o agent faz perguntas de esclarecimento antes de auditar, usando `interrupt` do LangGraph.
+- **Investigadores ReAct por dimensão** — cada dimensão é auditada por um sub-agent que explora o código com ferramentas (ler arquivo, listar diretório, buscar padrões).
+- **Saída estruturada** — achados validados por Pydantic (severidade, evidência, recomendação, confiança).
+- **Relatório profissional** — Markdown versionável + HTML auto-contido e estilizado, com pontuação de saúde 0–100.
+- **Seguro por design** — ferramentas são **read-only** e escopadas à raiz do projeto (proteção contra path traversal). O agent audita, nunca altera.
+
+## 🏗️ Arquitetura em uma imagem
+
+```
+START → discovery → plan_questions → clarify ─(interrupt)→ planning
+      → audit(⇉ investigadores ReAct por dimensão) → synthesis → report → END
+```
+
+Detalhes em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md).
+
+## 🚀 Início rápido
+
+```bash
+# 1. Ambiente
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+
+# 2. Credenciais
+cp .env.example .env
+# edite .env e preencha ANTHROPIC_API_KEY
+
+# 3. Auditar um projeto
+auditor audit /caminho/do/projeto --goal "Preparando para produção, foco em segurança"
+```
+
+O agent fará algumas perguntas no terminal, executará a auditoria e gravará os
+relatórios em `./audit-reports/` (configurável via `AUDITOR_OUTPUT_DIR`).
+
+### Modo não interativo (CI/pipeline)
+
+```bash
+auditor audit /caminho/do/projeto --no-questions
+```
+
+## 🔌 Provedores de LLM
+
+O provedor é configurável via `AUDITOR_PROVIDER` (no `.env`) ou pela flag `--provider`.
+Cada provedor exige seu pacote de integração e sua credencial:
+
+```bash
+# instale o(s) provedor(es) desejado(s)
+pip install -e ".[openai]"        # ou .[google], .[groq], .[ollama], .[all-providers]
+
+# use por flag (sobrescreve o .env)
+auditor audit /proj --provider openai      --model gpt-4o
+auditor audit /proj --provider google_genai --model gemini-2.0-flash
+auditor audit /proj --provider groq        --model llama-3.3-70b-versatile
+auditor audit /proj --provider ollama      --model qwen2.5-coder:14b   # 100% local
+
+auditor providers   # lista todos os provedores, pacotes e credenciais
+```
+
+> **Ollama (local):** ideal para auditar código sensível sem enviar dados à nuvem.
+> Defina `AUDITOR_BASE_URL=http://localhost:11434` se necessário.
+
+## 📋 Comandos
+
+| Comando | Descrição |
+| --- | --- |
+| `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Executa a auditoria e emite o relatório. |
+| `auditor providers` | Lista os provedores de LLM suportados. |
+| `auditor version` | Mostra a versão. |
+
+## 🧪 Testes
+
+```bash
+pytest -q          # testes de fumaça (offline, sem LLM)
+```
+
+## 📚 Documentação
+
+- [`docs/SPEC.md`](docs/SPEC.md) — especificação funcional e requisitos.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitetura, grafo e estado.
+- [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md) — design do agent e decisões (best practices LangChain).
+- [`docs/USAGE.md`](docs/USAGE.md) — guia de uso, configuração e extensão.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — evolução planejada.
+
+## ⚙️ Configuração
+
+Todas as opções vêm de variáveis de ambiente (ver [`.env.example`](.env.example)):
+`ANTHROPIC_API_KEY`, `AUDITOR_MODEL`, `AUDITOR_TEMPERATURE`, `AUDITOR_MAX_FILES`,
+`AUDITOR_MAX_INVESTIGATOR_STEPS`, `AUDITOR_OUTPUT_DIR`, entre outras.
+
+## 📄 Licença
+
+MIT.
