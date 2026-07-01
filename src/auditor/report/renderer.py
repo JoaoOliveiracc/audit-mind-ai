@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from ..state import Severity
 
@@ -124,9 +124,13 @@ def render_markdown(ctx: dict[str, Any]) -> str:
 
 def render_html(ctx: dict[str, Any]) -> str:
     """Gera o relatório em HTML (auto-contido, com CSS embutido)."""
+    # autoescape=True (incondicional): o conteúdo dos achados vem de código
+    # auditado (potencialmente malicioso). Sem escape, um repositório hostil
+    # poderia injetar <script> no relatório HTML (XSS armazenado). O template
+    # termina em '.j2', então select_autoescape por extensão NÃO ativaria o escape.
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        autoescape=select_autoescape(["html", "xml"]),
+        autoescape=True,
     )
     template = env.get_template("report.html.j2")
     return template.render(**ctx)
