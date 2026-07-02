@@ -1,6 +1,6 @@
 # Auditor-IA 🕵️
 
-Agent de **auditoria de projetos de desenvolvimento**, agnóstico de stack, construído com **LangGraph + LangChain** e **multi-provider de LLM** (Anthropic, OpenAI, Google, Groq, Mistral, Ollama local, Bedrock…).
+Agent de **auditoria de projetos de desenvolvimento**, agnóstico de stack, construído com **LangGraph + LangChain** e **multi-provider de LLM** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama local, Bedrock…).
 
 O agent descobre a stack do projeto, conversa com você para esclarecer o escopo, executa investigadores especializados por dimensão (segurança, qualidade, arquitetura, testes, dependências, etc.) e emite um **relatório completo em Markdown e HTML**.
 
@@ -9,7 +9,7 @@ O agent descobre a stack do projeto, conversa com você para esclarecer o escopo
 ## ✨ Características
 
 - **Agnóstico de stack** — detecta automaticamente linguagens, frameworks e gerenciadores de pacote (Python, Node, Go, Rust, Java, PHP, Ruby, .NET, e mais).
-- **Multi-provider de LLM** — troca de provedor por variável de ambiente ou flag de CLI (`--provider`), via `init_chat_model`. Suporta Anthropic, OpenAI, Google, Groq, Mistral, Ollama (local), Bedrock, entre outros.
+- **Multi-provider de LLM** — troca de provedor por variável de ambiente ou flag de CLI (`--provider`), via `init_chat_model`. Suporta Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama (local), Bedrock, entre outros.
 - **Human-in-the-loop** — o agent faz perguntas de esclarecimento antes de auditar, usando `interrupt` do LangGraph.
 - **Investigadores ReAct por dimensão** — cada dimensão é auditada por um sub-agent que explora o código com ferramentas (ler arquivo, listar diretório, buscar padrões).
 - **Saída estruturada** — achados validados por Pydantic (severidade, evidência, recomendação, confiança).
@@ -31,10 +31,11 @@ Detalhes em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/AGENT_DESIGN
 # 1. Ambiente
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+make hooks          # ativa o hook de pre-commit de segurança (bloqueia segredos)
 
 # 2. Credenciais
 cp .env.example .env
-# edite .env e preencha ANTHROPIC_API_KEY
+# edite .env: defina AUDITOR_PROVIDER e a chave do provedor (ex.: DEEPSEEK_API_KEY, ANTHROPIC_API_KEY)
 
 # 3. Auditar um projeto
 auditor audit /caminho/do/projeto --goal "Preparando para produção, foco em segurança"
@@ -48,6 +49,25 @@ relatórios em `./audit-reports/` (configurável via `AUDITOR_OUTPUT_DIR`).
 ```bash
 auditor audit /caminho/do/projeto --no-questions
 ```
+
+### Rodar em qualquer terminal (instalação global)
+
+Para usar `auditor` fora do venv, a partir de qualquer diretório:
+
+```bash
+# 1. Symlink do binário para um diretório do PATH (~/.local/bin)
+ln -sf "$(pwd)/.venv/bin/auditor" ~/.local/bin/auditor
+
+# 2. Config global, lida de qualquer lugar
+mkdir -p ~/.config/auditor && cp .env ~/.config/auditor/.env && chmod 600 ~/.config/auditor/.env
+```
+
+A configuração é carregada nesta ordem (**a primeira fonte vence**):
+1. variáveis já exportadas no shell;
+2. `.env` do diretório atual (fluxo de desenvolvimento);
+3. `~/.config/auditor/.env` (config de usuário, para uso global).
+
+> A config global é uma **cópia** do `.env` — ao trocar chave/provedor, atualize `~/.config/auditor/.env`.
 
 ## 🔌 Provedores de LLM
 

@@ -28,8 +28,8 @@
 - [ ] Ação de GitHub / GitLab (auditoria em PR com comentários inline).
 - [ ] Comparação entre auditorias (diff de saúde ao longo do tempo).
 
-## v0.5 — Multi-provider e governança
-- [ ] Factory de provedores de LLM (OpenAI, Ollama local) configurável por env.
+## v0.5 — Governança
+- [x] Factory multi-provider de LLM (`init_chat_model`) configurável por env — **entregue** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama, Bedrock, …).
 - [ ] Perfis de auditoria (ex.: "OWASP", "LGPD", "pré-produção") como presets.
 - [ ] Políticas configuráveis de severidade e gates de aprovação.
 - [ ] Trilha de auditoria assinada (proveniência dos achados).
