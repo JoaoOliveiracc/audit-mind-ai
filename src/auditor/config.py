@@ -2,15 +2,22 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Carrega o .env para o ambiente do processo (sem sobrescrever variáveis já
-# definidas). Assim, as SDKs de cada provedor conseguem ler suas próprias chaves
-# (OPENAI_API_KEY, GROQ_API_KEY, etc.) diretamente de os.environ.
+# Carrega credenciais/config para o ambiente do processo (sem sobrescrever
+# variáveis já definidas → a primeira fonte vence). Ordem de precedência:
+#   1. Variáveis já exportadas no shell
+#   2. .env do diretório atual (fluxo de desenvolvimento dentro do projeto)
+#   3. ~/.config/auditor/.env (config de usuário, para rodar em qualquer terminal)
+# Assim, as SDKs de cada provedor leem suas chaves (DEEPSEEK_API_KEY, etc.) de os.environ.
 load_dotenv(override=False)
+_USER_ENV = Path.home() / ".config" / "auditor" / ".env"
+if _USER_ENV.is_file():
+    load_dotenv(_USER_ENV, override=False)
 
 # Provedor -> variável de ambiente da credencial (None = não requer chave, ex.: local).
 PROVIDER_ENV_VAR: dict[str, str | None] = {

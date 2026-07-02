@@ -6,24 +6,52 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"      # ou: pip install -r requirements.txt
+make hooks                   # ativa o hook de pre-commit de segurança
 ```
 
 Requer Python ≥ 3.10.
 
+### Instalação global (rodar em qualquer terminal)
+
+Por padrão, `auditor` só existe dentro do venv. Para usá-lo de qualquer diretório:
+
+```bash
+# binário no PATH
+ln -sf "$(pwd)/.venv/bin/auditor" ~/.local/bin/auditor
+# config global (lida de qualquer lugar)
+mkdir -p ~/.config/auditor && cp .env ~/.config/auditor/.env && chmod 600 ~/.config/auditor/.env
+```
+
+Garanta que `~/.local/bin` está no PATH (no Ubuntu costuma estar; senão adicione
+`export PATH="$HOME/.local/bin:$PATH"` ao `~/.bashrc`).
+
 ## 2. Configuração
 
-Copie o exemplo e preencha a chave da Anthropic:
+Copie o exemplo e preencha o provedor e a credencial escolhidos:
 
 ```bash
 cp .env.example .env
 ```
 
 ```dotenv
-ANTHROPIC_API_KEY=sk-ant-...
-AUDITOR_MODEL=claude-sonnet-4-5      # troque o modelo aqui, se quiser
+AUDITOR_PROVIDER=deepseek            # anthropic | openai | google_genai | deepseek | ollama | …
+DEEPSEEK_API_KEY=sk-...              # credencial do provedor escolhido
+AUDITOR_MODEL=deepseek-chat          # modelo (depende do provedor)
 AUDITOR_TEMPERATURE=0
 AUDITOR_OUTPUT_DIR=./audit-reports
 ```
+
+### Precedência de configuração
+
+O agent carrega as configurações nesta ordem (**a primeira fonte a definir uma
+variável vence**):
+
+1. variáveis já exportadas no shell (ex.: `export DEEPSEEK_API_KEY=...`);
+2. `.env` do diretório atual (fluxo de desenvolvimento dentro do projeto);
+3. `~/.config/auditor/.env` (config de usuário, usada ao rodar em qualquer terminal).
+
+> A config global é uma **cópia** do `.env` — se trocar chave/provedor, edite
+> `~/.config/auditor/.env` (ou copie o `.env` novamente).
 
 Variáveis disponíveis (todas opcionais exceto a chave):
 
@@ -132,7 +160,9 @@ print(final["health_score"], final["report_html_path"])
 
 | Sintoma | Causa provável | Solução |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY não configurada` | `.env` ausente/vazio | Preencha a chave. |
+| `auditor: comando não encontrado` | venv não ativado / sem instalação global | Ative o venv ou faça a instalação global (§1). |
+| `... requer a variável de ambiente '<PROVIDER>_API_KEY'` | credencial do provedor ausente | Defina a chave no `.env` (ou `~/.config/auditor/.env`). |
+| `RESOURCE_EXHAUSTED` / `credit balance too low` | cota/billing do provedor | Troque de provedor (`--provider`) ou adicione créditos. |
 | `Recursion limit reached` | Projeto grande demais p/ os passos | Aumente `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
 | Auditoria lenta/cara | Muitas dimensões/arquivos | Reduza `AUDITOR_MAX_FILES` ou use `--goal` para focar. |
 | Poucos achados | Contexto insuficiente | Responda às perguntas de esclarecimento com detalhes. |
