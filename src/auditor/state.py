@@ -67,6 +67,10 @@ class Finding(BaseModel):
         default=None,
         description="Preenchido pelo nó de verificação: True se a evidência foi localizada no arquivo.",
     )
+    judged: Optional[str] = Field(
+        default=None,
+        description="Preenchido pelo juiz adversarial: 'confirmed' ou 'uncertain'.",
+    )
 
 
 class DimensionResult(BaseModel):
@@ -75,6 +79,16 @@ class DimensionResult(BaseModel):
     dimension: str = Field(description="Dimensão auditada.")
     summary: str = Field(description="Resumo executivo dos achados desta dimensão.")
     findings: list[Finding] = Field(default_factory=list, description="Lista de achados.")
+
+
+class Verdict(BaseModel):
+    """Veredito do juiz adversarial sobre um achado."""
+
+    verdict: str = Field(description="Um de: confirmed, refuted, uncertain.")
+    rationale: str = Field(description="Justificativa curta e objetiva do veredito.")
+    confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Confiança do juiz de 0 a 1."
+    )
 
 
 class ClarifyingQuestion(BaseModel):
@@ -149,6 +163,8 @@ class AuditState(TypedDict, total=False):
 
     # Verificação de evidência (estatísticas do nó verify)
     verification: dict[str, Any]
+    # Verificação adversarial (estatísticas do juiz LLM)
+    adversarial: dict[str, Any]
 
     # Síntese / relatório
     health_score: int

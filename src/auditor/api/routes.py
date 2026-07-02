@@ -136,6 +136,7 @@ def get_findings(audit_id: str) -> dict:
         "executive_summary": values.get("executive_summary", ""),
         "stack_profile": values.get("stack_profile", {}),
         "verification": values.get("verification", {}),
+        "adversarial": values.get("adversarial", {}),
     }
 
 
