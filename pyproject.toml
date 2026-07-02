@@ -40,6 +40,13 @@ mistral = ["langchain-mistralai>=0.2"]
 ollama = ["langchain-ollama>=0.2"]
 deepseek = ["langchain-deepseek>=1.0"]
 aws = ["langchain-aws>=0.2"]
+# Camada de API/web (FastAPI + SSE + checkpointer persistente).
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sse-starlette>=2.1",
+    "langgraph-checkpoint-sqlite>=2.0",
+]
 # Instala os provedores mais comuns de uma vez.
 all-providers = [
     "langchain-openai>=0.2",

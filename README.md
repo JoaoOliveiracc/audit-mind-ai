@@ -96,8 +96,21 @@ auditor providers   # lista todos os provedores, pacotes e credenciais
 | Comando | Descrição |
 | --- | --- |
 | `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Executa a auditoria e emite o relatório. |
+| `auditor serve [--host H] [--port N] [--reload]` | Sobe a API FastAPI (para o frontend web). |
 | `auditor providers` | Lista os provedores de LLM suportados. |
 | `auditor version` | Mostra a versão. |
+
+### API web (backend)
+
+```bash
+pip install -e ".[api]"
+auditor serve            # http://127.0.0.1:8000 — docs interativas em /docs
+```
+
+Endpoints: `POST /audits` (inicia), `GET /audits/{id}/stream` (SSE de progresso e
+esclarecimentos), `POST /audits/{id}/answers` (human-in-the-loop), `GET /audits/{id}/findings`
+(JSON), `GET /audits/{id}/report?format=html|md`. Estado persistido via `SqliteSaver`.
+Design completo em [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
 
 ## 🧪 Testes
 
@@ -112,6 +125,7 @@ pytest -q          # testes de fumaça (offline, sem LLM)
 - [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md) — design do agent e decisões (best practices LangChain).
 - [`docs/USAGE.md`](docs/USAGE.md) — guia de uso, configuração e extensão.
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — evolução planejada.
+- [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md) — spec da interface web (React/Next + FastAPI).
 - [`SECURITY.md`](SECURITY.md) — política de segredos e proteções (hook de pre-commit).
 
 ## ⚙️ Configuração
