@@ -23,8 +23,9 @@
 - [ ] Análise de histórico Git (hotspots, autores, churn).
 
 ## v0.4 — Experiência e integração
-- [ ] Camada de API (FastAPI) reutilizando o mesmo grafo.
-- [ ] Exportação JSON estruturada (para dashboards/CI gates).
+- [x] Camada de API (FastAPI) reutilizando o mesmo grafo — **entregue (F1–F3)**: endpoints, SSE, checkpointer SQLite e human-in-the-loop. Ver [`FRONTEND_SPEC.md`](FRONTEND_SPEC.md).
+- [x] Exportação JSON estruturada de achados — **entregue** (`GET /audits/{id}/findings`).
+- [ ] Frontend web (React + Next.js) consumindo a API — fases F4–F6.
 - [ ] Ação de GitHub / GitLab (auditoria em PR com comentários inline).
 - [ ] Comparação entre auditorias (diff de saúde ao longo do tempo).
 

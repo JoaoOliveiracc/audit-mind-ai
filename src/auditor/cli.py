@@ -199,6 +199,22 @@ def providers():
 
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", help="Host da API (padrão: apenas local)."),
+    port: int = typer.Option(8000, help="Porta da API."),
+    reload: bool = typer.Option(False, "--reload", help="Auto-reload (desenvolvimento)."),
+):
+    """Sobe a API FastAPI (para o frontend web)."""
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Erro:[/red] dependências da API ausentes. Instale com: pip install -e \".[api]\"")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Auditor-IA API[/green] em http://{host}:{port}  (docs em /docs)")
+    uvicorn.run("auditor.api.main:app", host=host, port=port, reload=reload)
+
+
+@app.command()
 def version():
     """Mostra a versão do Auditor-IA."""
     console.print(f"Auditor-IA v{__version__}")
