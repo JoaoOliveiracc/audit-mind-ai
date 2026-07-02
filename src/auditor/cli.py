@@ -176,6 +176,16 @@ def _print_summary(state: dict) -> None:
         )
     )
     console.print(table)
+
+    v = state.get("verification") or {}
+    if v.get("enabled"):
+        console.print(
+            f"\n[bold]Verificação de evidência:[/bold] "
+            f"[green]{v.get('verified', 0)} confirmados[/green], "
+            f"{v.get('unverified', 0)} sem evidência, "
+            f"[red]{v.get('rejected', 0)} descartados[/red]"
+        )
+
     console.print(f"\n[bold]Markdown:[/bold] {state.get('report_markdown_path', '—')}")
     console.print(f"[bold]HTML:[/bold]     {state.get('report_html_path', '—')}")
 

@@ -100,6 +100,20 @@
     <div class="summary">{{ d.summary }}</div>
   {% endfor %}
 
+  {% if verification and verification.enabled %}
+  <h2>Verificação de Evidência</h2>
+  <p class="meta">Cada achado foi conferido no código-fonte (arquivo, linha e trecho de evidência).</p>
+  <div class="grid">
+    <div class="card"><div class="meta">Confirmados</div><strong>{{ verification.verified or 0 }}</strong></div>
+    <div class="card"><div class="meta">Sem evidência</div><strong>{{ verification.unverified or 0 }}</strong></div>
+    <div class="card"><div class="meta">Descartados</div><strong>{{ verification.rejected or 0 }}</strong></div>
+  </div>
+  {% if verification.rejected_titles %}
+  <p class="meta">Descartados como não-substanciados:</p>
+  <ul>{% for t in verification.rejected_titles %}<li>{{ t }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endif %}
+
   <h2>Achados Detalhados</h2>
   {% if not findings %}<p>Nenhum achado registrado.</p>{% endif %}
   {% for f in findings %}
@@ -110,6 +124,7 @@
       Dimensão: {{ f.dimension }}
       {% if f.file %}· <code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code>{% endif %}
       · Confiança: {{ '%.0f'|format((f.confidence or 0)*100) }}%
+      {% if f.verified is not none %}· {% if f.verified %}✓ verificado{% else %}não confirmado{% endif %}{% endif %}
     </div>
     <p>{{ f.description }}</p>
     {% if f.evidence %}<pre>{{ f.evidence }}</pre>{% endif %}

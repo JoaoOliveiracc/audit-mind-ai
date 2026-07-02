@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     # Comportamento
     log_level: str = Field(default="INFO", alias="AUDITOR_LOG_LEVEL")
     output_dir: str = Field(default="./audit-reports", alias="AUDITOR_OUTPUT_DIR")
+    # Verificação determinística de evidência (descarta achados não-substanciados)
+    verify_findings: bool = Field(default=True, alias="AUDITOR_VERIFY_EVIDENCE")
 
     # Diretórios ignorados na varredura
     ignore_dirs: tuple[str, ...] = (

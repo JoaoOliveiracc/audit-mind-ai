@@ -135,6 +135,7 @@ def get_findings(audit_id: str) -> dict:
         "health_score": values.get("health_score"),
         "executive_summary": values.get("executive_summary", ""),
         "stack_profile": values.get("stack_profile", {}),
+        "verification": values.get("verification", {}),
     }
 
 
