@@ -1,4 +1,4 @@
-"""Endpoints da API do Auditor-IA."""
+"""Endpoints da API do Audit Mind AI."""
 from __future__ import annotations
 
 import asyncio

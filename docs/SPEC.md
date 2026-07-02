@@ -1,4 +1,4 @@
-# Especificação Funcional — Auditor-IA
+# Especificação Funcional — Audit Mind AI
 
 ## 1. Objetivo
 

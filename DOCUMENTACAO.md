@@ -1,4 +1,4 @@
-# Auditor-IA — Security Audit Agent
+# Audit Mind AI — Security Audit Agent
 
 > Agente de auditoria de segurança de código baseado em LangChain + LLM local (Ollama / Gemma 3).
 > Lê o código-fonte de um projeto, monta um contexto único e conversa com um modelo

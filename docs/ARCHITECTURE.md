@@ -1,8 +1,8 @@
-# Arquitetura — Auditor-IA
+# Arquitetura — Audit Mind AI
 
 ## 1. Visão geral
 
-O Auditor-IA é um **grafo de estados (LangGraph)** onde cada nó é uma etapa da
+O Audit Mind AI é um **grafo de estados (LangGraph)** onde cada nó é uma etapa da
 auditoria. O estado é compartilhado e acumulado ao longo do fluxo. A fase de
 auditoria delega a **sub-agents ReAct** (um por dimensão), que exploram o código
 com ferramentas read-only e retornam achados estruturados.

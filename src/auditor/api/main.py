@@ -1,4 +1,4 @@
-"""Aplicação FastAPI do Auditor-IA (modo local/desktop)."""
+"""Aplicação FastAPI do Audit Mind AI (modo local/desktop)."""
 from __future__ import annotations
 
 from fastapi import FastAPI
@@ -8,7 +8,7 @@ from .. import __version__
 from .routes import router
 
 app = FastAPI(
-    title="Auditor-IA API",
+    title="Audit Mind AI API",
     version=__version__,
     description="API local para o agent de auditoria (React/Next consome esta API).",
 )

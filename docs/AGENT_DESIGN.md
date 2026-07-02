@@ -1,4 +1,4 @@
-# Design do Agent & Decisões — Auditor-IA
+# Design do Agent & Decisões — Audit Mind AI
 
 Este documento registra as decisões de design e como elas refletem **boas práticas
 de LangChain/LangGraph**.

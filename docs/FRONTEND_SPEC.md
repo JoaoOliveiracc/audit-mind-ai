@@ -1,4 +1,4 @@
-# Spec de Frontend & API — Auditor-IA
+# Spec de Frontend & API — Audit Mind AI
 
 Especificação de arquitetura para uma interface web (React + Next.js) sobre o
 agent existente, em **modo local/desktop** (um usuário, sem servidor dedicado).

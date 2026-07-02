@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Pre-commit de segurança do Auditor-IA.
+# Pre-commit de segurança do Audit Mind AI.
 # Bloqueia (1) o commit de arquivos .env reais e (2) segredos com formato de
 # chave real em qualquer arquivo versionado (incluindo .env.example).
 #

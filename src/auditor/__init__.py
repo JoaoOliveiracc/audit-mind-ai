@@ -1,4 +1,4 @@
-"""Auditor-IA — agent de auditoria de projetos de desenvolvimento (LangGraph + Claude)."""
+"""Audit Mind AI — agent de auditoria de projetos de desenvolvimento (LangGraph + Claude)."""
 
 __version__ = "0.1.0"
 
