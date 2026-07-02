@@ -186,6 +186,15 @@ def _print_summary(state: dict) -> None:
             f"[red]{v.get('rejected', 0)} descartados[/red]"
         )
 
+    adv = state.get("adversarial") or {}
+    if adv.get("enabled"):
+        console.print(
+            f"[bold]Verificação adversarial:[/bold] "
+            f"[green]{adv.get('confirmed', 0)} confirmados[/green], "
+            f"{adv.get('uncertain', 0)} incertos, "
+            f"[red]{adv.get('refuted', 0)} refutados[/red]"
+        )
+
     console.print(f"\n[bold]Markdown:[/bold] {state.get('report_markdown_path', '—')}")
     console.print(f"[bold]HTML:[/bold]     {state.get('report_html_path', '—')}")
 

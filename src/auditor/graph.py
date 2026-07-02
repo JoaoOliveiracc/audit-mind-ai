@@ -3,10 +3,11 @@
 Fluxo:
 
     START → discovery → plan_questions → clarify ─(interrupt)→ planning
-          → audit → verify → synthesis → report → END
+          → audit → verify → adversarial → synthesis → report → END
 
 O nó ``verify`` confere no disco a evidência de cada achado (anti-alucinação),
-descartando os não-substanciados antes da síntese/relatório.
+descartando os não-substanciados. O nó ``adversarial`` (opcional) usa um juiz LLM
+cético que tenta refutar cada achado elegível antes da síntese/relatório.
 
 O nó ``clarify`` usa ``interrupt`` para o human-in-the-loop; um checkpointer é
 necessário para pausar e retomar a execução.
@@ -17,6 +18,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from .nodes import (
+    adversarial_node,
     audit_node,
     clarify_node,
     discovery_node,
@@ -44,6 +46,7 @@ def build_graph(checkpointer=None):
     graph.add_node("planning", planning_node)
     graph.add_node("audit", audit_node)
     graph.add_node("verify", verify_node)
+    graph.add_node("adversarial", adversarial_node)
     graph.add_node("synthesis", synthesis_node)
     graph.add_node("report", report_node)
 
@@ -53,7 +56,8 @@ def build_graph(checkpointer=None):
     graph.add_edge("clarify", "planning")
     graph.add_edge("planning", "audit")
     graph.add_edge("audit", "verify")
-    graph.add_edge("verify", "synthesis")
+    graph.add_edge("verify", "adversarial")
+    graph.add_edge("adversarial", "synthesis")
     graph.add_edge("synthesis", "report")
     graph.add_edge("report", END)
 

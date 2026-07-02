@@ -98,6 +98,12 @@ class Settings(BaseSettings):
     output_dir: str = Field(default="./audit-reports", alias="AUDITOR_OUTPUT_DIR")
     # Verificação determinística de evidência (descarta achados não-substanciados)
     verify_findings: bool = Field(default=True, alias="AUDITOR_VERIFY_EVIDENCE")
+    # Verificação adversarial (juiz LLM tenta refutar cada achado — custa tokens)
+    verify_adversarial: bool = Field(default=False, alias="AUDITOR_ADVERSARIAL_VERIFY")
+    # Só julga achados com severidade >= este limiar (critical|high|medium|low|info)
+    adversarial_min_severity: str = Field(default="high", alias="AUDITOR_ADVERSARIAL_MIN_SEVERITY")
+    # Nº de vereditos por achado (1..3, com lentes distintas; maioria decide)
+    adversarial_votes: int = Field(default=1, alias="AUDITOR_ADVERSARIAL_VOTES")
 
     # Diretórios ignorados na varredura
     ignore_dirs: tuple[str, ...] = (

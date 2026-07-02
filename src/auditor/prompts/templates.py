@@ -160,3 +160,46 @@ Resumos por dimensão:
 Distribuição de achados por severidade:
 {severity_counts}
 """
+
+# --------------------------------------------------------------------------- #
+# Juiz adversarial (tenta refutar cada achado)                                 #
+# --------------------------------------------------------------------------- #
+JUDGE_SYSTEM = """Você é um revisor sênior CÉTICO. Seu trabalho é tentar REFUTAR o
+achado de auditoria a seguir, não confirmá-lo. Assuma que pode ser um falso
+positivo até que o código prove o contrário.
+
+Regras:
+- Baseie-se EXCLUSIVAMENTE no trecho de código fornecido. Não invente contexto.
+- Se o código não sustenta claramente o achado, responda 'refuted'.
+- Se o código sustenta o achado de forma inequívoca, responda 'confirmed'.
+- Se for ambíguo ou faltar contexto para decidir, responda 'uncertain'.
+- Na dúvida entre 'confirmed' e 'uncertain', prefira 'uncertain'.
+"""
+
+# Lentes distintas para votação (quando adversarial_votes > 1).
+JUDGE_LENSES: list[str] = [
+    "Correção técnica: o problema descrito é tecnicamente real NESTE código?",
+    "Explorabilidade/impacto: isso é de fato explorável/impactante aqui, ou apenas teórico?",
+    "Falso positivo: há mitigação, sanitização ou contexto no código que invalide o achado?",
+]
+
+JUDGE_PROMPT = """Achado a avaliar (dimensão **{dimension}**, severidade {severity}):
+
+Título: {title}
+Descrição: {description}
+Recomendação proposta: {recommendation}
+Local: {location}
+Evidência citada:
+{evidence}
+
+Ângulo de avaliação desta rodada:
+{lens}
+
+Contexto real do código (do arquivo citado):
+```
+{code_context}
+```
+
+Decida: o achado é um problema real e válido? Responda com o veredito estruturado
+(confirmed / refuted / uncertain), uma justificativa curta e sua confiança.
+"""

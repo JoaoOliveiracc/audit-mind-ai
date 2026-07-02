@@ -53,6 +53,7 @@ def build_context(state: dict[str, Any], generated_at: str) -> dict[str, Any]:
         "severity_label": SEVERITY_LABEL,
         "total_findings": len(findings),
         "verification": state.get("verification", {}),
+        "adversarial": state.get("adversarial", {}),
     }
 
 
@@ -93,6 +94,19 @@ def render_markdown(ctx: dict[str, Any]) -> str:
                 a(f"  - {t}")
         a("")
 
+    adv = ctx.get("adversarial") or {}
+    if adv.get("enabled"):
+        a("## Verificação Adversarial (juiz LLM)\n")
+        a("Um revisor cético reavaliou os achados elegíveis tentando refutá-los.\n")
+        a(f"- **Confirmados:** {adv.get('confirmed', 0)}")
+        a(f"- **Incertos (confiança rebaixada):** {adv.get('uncertain', 0)}")
+        a(f"- **Refutados (descartados):** {adv.get('refuted', 0)} de {adv.get('judged', 0)} julgados")
+        if adv.get("refuted_titles"):
+            a("\nRefutados:")
+            for t in adv["refuted_titles"]:
+                a(f"  - {t}")
+        a("")
+
     profile = ctx["stack_profile"]
     a("## Perfil Técnico Detectado\n")
     if profile:
@@ -126,7 +140,10 @@ def render_markdown(ctx: dict[str, Any]) -> str:
         a(f"- **Local:** `{loc}`")
         vflag = f.get("verified")
         vtag = "✓ evidência verificada" if vflag is True else ("evidência não confirmada" if vflag is False else "—")
-        a(f"- **Confiança:** {f.get('confidence', 0):.0%} · **Verificação:** {vtag}")
+        line_out = f"- **Confiança:** {f.get('confidence', 0):.0%} · **Verificação:** {vtag}"
+        if f.get("judged"):
+            line_out += f" · **Juiz:** {f['judged']}"
+        a(line_out)
         a("")
         a(f"**Descrição:** {f.get('description', '')}\n")
         if f.get("evidence"):
