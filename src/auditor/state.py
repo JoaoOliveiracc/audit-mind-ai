@@ -63,6 +63,10 @@ class Finding(BaseModel):
     line: Optional[int] = Field(default=None, description="Linha aproximada, se aplicável.")
     evidence: Optional[str] = Field(default=None, description="Trecho de código ou evidência.")
     confidence: float = Field(default=0.7, ge=0.0, le=1.0, description="Confiança de 0 a 1.")
+    verified: Optional[bool] = Field(
+        default=None,
+        description="Preenchido pelo nó de verificação: True se a evidência foi localizada no arquivo.",
+    )
 
 
 class DimensionResult(BaseModel):
@@ -138,8 +142,13 @@ class AuditState(TypedDict, total=False):
     plan: dict[str, Any]
 
     # Auditoria
-    findings: Annotated[list[dict[str, Any]], operator.add]
+    # ``findings`` NÃO usa reducer aditivo: o nó ``audit`` o preenche e o nó
+    # ``verify`` o reescreve com a lista filtrada (evidência confirmada).
+    findings: list[dict[str, Any]]
     dimension_summaries: Annotated[list[dict[str, Any]], operator.add]
+
+    # Verificação de evidência (estatísticas do nó verify)
+    verification: dict[str, Any]
 
     # Síntese / relatório
     health_score: int

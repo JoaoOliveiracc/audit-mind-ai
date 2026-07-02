@@ -3,7 +3,10 @@
 Fluxo:
 
     START → discovery → plan_questions → clarify ─(interrupt)→ planning
-          → audit → synthesis → report → END
+          → audit → verify → synthesis → report → END
+
+O nó ``verify`` confere no disco a evidência de cada achado (anti-alucinação),
+descartando os não-substanciados antes da síntese/relatório.
 
 O nó ``clarify`` usa ``interrupt`` para o human-in-the-loop; um checkpointer é
 necessário para pausar e retomar a execução.
@@ -21,6 +24,7 @@ from .nodes import (
     planning_node,
     report_node,
     synthesis_node,
+    verify_node,
 )
 from .state import AuditState
 
@@ -39,6 +43,7 @@ def build_graph(checkpointer=None):
     graph.add_node("clarify", clarify_node)
     graph.add_node("planning", planning_node)
     graph.add_node("audit", audit_node)
+    graph.add_node("verify", verify_node)
     graph.add_node("synthesis", synthesis_node)
     graph.add_node("report", report_node)
 
@@ -47,7 +52,8 @@ def build_graph(checkpointer=None):
     graph.add_edge("plan_questions", "clarify")
     graph.add_edge("clarify", "planning")
     graph.add_edge("planning", "audit")
-    graph.add_edge("audit", "synthesis")
+    graph.add_edge("audit", "verify")
+    graph.add_edge("verify", "synthesis")
     graph.add_edge("synthesis", "report")
     graph.add_edge("report", END)
 

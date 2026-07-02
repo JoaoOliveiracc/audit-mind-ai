@@ -52,6 +52,7 @@ def build_context(state: dict[str, Any], generated_at: str) -> dict[str, Any]:
         "severity_order": SEVERITY_ORDER,
         "severity_label": SEVERITY_LABEL,
         "total_findings": len(findings),
+        "verification": state.get("verification", {}),
     }
 
 
@@ -78,6 +79,19 @@ def render_markdown(ctx: dict[str, Any]) -> str:
     for sev in ctx["severity_order"]:
         a(f"| {ctx['severity_label'][sev]} | {ctx['counts'].get(sev, 0)} |")
     a("")
+
+    v = ctx.get("verification") or {}
+    if v.get("enabled"):
+        a("## Verificação de Evidência\n")
+        a("Cada achado foi conferido no código-fonte (arquivo, linha e trecho de evidência).\n")
+        a(f"- **Confirmados no código:** {v.get('verified', 0)}")
+        a(f"- **Sem evidência para confirmar (confiança rebaixada):** {v.get('unverified', 0)}")
+        a(f"- **Descartados como não-substanciados:** {v.get('rejected', 0)}")
+        if v.get("rejected_titles"):
+            a("\nDescartados:")
+            for t in v["rejected_titles"]:
+                a(f"  - {t}")
+        a("")
 
     profile = ctx["stack_profile"]
     a("## Perfil Técnico Detectado\n")
@@ -110,7 +124,9 @@ def render_markdown(ctx: dict[str, Any]) -> str:
         if f.get("line"):
             loc += f":{f['line']}"
         a(f"- **Local:** `{loc}`")
-        a(f"- **Confiança:** {f.get('confidence', 0):.0%}")
+        vflag = f.get("verified")
+        vtag = "✓ evidência verificada" if vflag is True else ("evidência não confirmada" if vflag is False else "—")
+        a(f"- **Confiança:** {f.get('confidence', 0):.0%} · **Verificação:** {vtag}")
         a("")
         a(f"**Descrição:** {f.get('description', '')}\n")
         if f.get("evidence"):

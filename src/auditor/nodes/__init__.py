@@ -5,6 +5,7 @@ from .discovery import discovery_node
 from .planning import planning_node
 from .report import report_node
 from .synthesis import synthesis_node
+from .verify import verify_node
 
 __all__ = [
     "discovery_node",
@@ -12,6 +13,7 @@ __all__ = [
     "clarify_node",
     "planning_node",
     "audit_node",
+    "verify_node",
     "synthesis_node",
     "report_node",
 ]
