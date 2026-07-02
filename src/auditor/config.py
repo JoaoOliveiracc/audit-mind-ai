@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     max_file_bytes: int = Field(default=200_000, alias="AUDITOR_MAX_FILE_BYTES")
     max_files: int = Field(default=5000, alias="AUDITOR_MAX_FILES")
     max_search_results: int = Field(default=50, alias="AUDITOR_MAX_SEARCH_RESULTS")
-    max_investigator_steps: int = Field(default=25, alias="AUDITOR_MAX_INVESTIGATOR_STEPS")
+    max_investigator_steps: int = Field(default=80, alias="AUDITOR_MAX_INVESTIGATOR_STEPS")
 
     # Comportamento
     log_level: str = Field(default="INFO", alias="AUDITOR_LOG_LEVEL")
