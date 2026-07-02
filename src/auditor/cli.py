@@ -1,4 +1,4 @@
-"""CLI interativo do Auditor-IA."""
+"""CLI interativo do Audit Mind AI."""
 from __future__ import annotations
 
 import os
@@ -18,7 +18,7 @@ from .config import get_settings
 from .graph import build_graph
 from .llm import LLMConfigError, get_llm, reset_llm_cache
 
-app = typer.Typer(add_completion=False, help="Auditor-IA — auditoria de projetos com LangGraph.")
+app = typer.Typer(add_completion=False, help="Audit Mind AI — auditoria de projetos com LangGraph.")
 console = Console()
 
 _NODE_LABELS = {
@@ -110,7 +110,7 @@ def audit(
 
     console.print(
         Panel(
-            f"[bold]Auditor-IA[/bold] v{__version__}\n"
+            f"[bold]Audit Mind AI[/bold] v{__version__}\n"
             f"Projeto: [cyan]{root}[/cyan]\n"
             f"Provedor: [cyan]{settings.provider}[/cyan] · Modelo: [cyan]{settings.model}[/cyan]",
             border_style="blue",
@@ -210,14 +210,14 @@ def serve(
     except ImportError:
         console.print("[red]Erro:[/red] dependências da API ausentes. Instale com: pip install -e \".[api]\"")
         raise typer.Exit(code=1)
-    console.print(f"[green]Auditor-IA API[/green] em http://{host}:{port}  (docs em /docs)")
+    console.print(f"[green]Audit Mind AI API[/green] em http://{host}:{port}  (docs em /docs)")
     uvicorn.run("auditor.api.main:app", host=host, port=port, reload=reload)
 
 
 @app.command()
 def version():
-    """Mostra a versão do Auditor-IA."""
-    console.print(f"Auditor-IA v{__version__}")
+    """Mostra a versão do Audit Mind AI."""
+    console.print(f"Audit Mind AI v{__version__}")
 
 
 if __name__ == "__main__":

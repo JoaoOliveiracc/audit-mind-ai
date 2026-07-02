@@ -1,4 +1,4 @@
-# Guia de Uso — Auditor-IA
+# Guia de Uso — Audit Mind AI
 
 ## 1. Instalação
 

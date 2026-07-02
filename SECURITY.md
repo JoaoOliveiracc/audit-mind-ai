@@ -1,4 +1,4 @@
-# Política de Segredos — Auditor-IA
+# Política de Segredos — Audit Mind AI
 
 Este projeto lida com chaves de API de provedores de LLM. Regras e proteções para
 evitar vazamento de credenciais.

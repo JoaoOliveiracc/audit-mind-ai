@@ -1,4 +1,4 @@
-# Roadmap — Auditor-IA
+# Roadmap — Audit Mind AI
 
 ## v0.1 (atual) ✅
 - Grafo LangGraph completo (discovery → clarify → planning → audit → synthesis → report).

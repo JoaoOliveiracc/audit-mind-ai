@@ -1,4 +1,4 @@
-# Auditor-IA 🕵️
+# Audit Mind AI 🕵️
 
 Agent de **auditoria de projetos de desenvolvimento**, agnóstico de stack, construído com **LangGraph + LangChain** e **multi-provider de LLM** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama local, Bedrock…).
 

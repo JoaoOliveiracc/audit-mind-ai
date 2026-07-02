@@ -6,7 +6,7 @@ from ..state import AuditDimension
 # --------------------------------------------------------------------------- #
 # Persona / sistema base                                                       #
 # --------------------------------------------------------------------------- #
-SYSTEM_PERSONA = """Você é o Auditor-IA, um auditor sênior de engenharia de software.
+SYSTEM_PERSONA = """Você é o Audit Mind AI, um auditor sênior de engenharia de software.
 Sua missão é avaliar projetos de desenvolvimento de forma rigorosa, imparcial e
 acionável, independentemente da linguagem, framework ou stack utilizados.
 

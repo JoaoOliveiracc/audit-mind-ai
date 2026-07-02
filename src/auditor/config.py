@@ -55,7 +55,7 @@ PROVIDER_PACKAGE: dict[str, str] = {
 
 
 class Settings(BaseSettings):
-    """Configurações globais do Auditor-IA.
+    """Configurações globais do Audit Mind AI.
 
     Todos os valores podem ser sobrescritos por variáveis de ambiente com o
     prefixo ``AUDITOR_`` (exceto ``ANTHROPIC_API_KEY``, que segue o padrão da SDK).
