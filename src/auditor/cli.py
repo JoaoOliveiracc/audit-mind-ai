@@ -201,7 +201,7 @@ def providers():
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host da API (padrão: apenas local)."),
-    port: int = typer.Option(8000, help="Porta da API."),
+    port: int = typer.Option(8020, help="Porta da API."),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload (desenvolvimento)."),
 ):
     """Sobe a API FastAPI (para o frontend web)."""

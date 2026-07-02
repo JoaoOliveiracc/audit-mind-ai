@@ -112,6 +112,26 @@ esclarecimentos), `POST /audits/{id}/answers` (human-in-the-loop), `GET /audits/
 (JSON), `GET /audits/{id}/report?format=html|md`. Estado persistido via `SqliteSaver`.
 Design completo em [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
 
+### Interface web (frontend React/Next.js)
+
+Frontend em `web/` (Next.js + Tailwind) com 3 telas: nova auditoria, execução ao
+vivo (progresso + esclarecimentos via SSE) e dashboard do relatório (achados por
+severidade, filtros, export).
+
+```bash
+# 1. Backend (terminal A)
+auditor serve                       # http://127.0.0.1:8000
+
+# 2. Frontend (terminal B)
+cd web && npm install && npm run dev # http://localhost:3020
+```
+
+Ou tudo junto: `make dev` (sobe API + frontend). Configure a URL da API em
+`web/.env.local` (`NEXT_PUBLIC_API_URL`, padrão `http://127.0.0.1:8000`).
+
+> As portas padrão são **8000** (API) e **3000** (web). Se já houver serviços
+> nelas, ajuste `auditor serve --port` e `NEXT_PUBLIC_API_URL`/porta do Next.
+
 ## 🧪 Testes
 
 ```bash

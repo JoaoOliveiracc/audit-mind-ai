@@ -37,7 +37,7 @@ agent existente, em **modo local/desktop** (um usuário, sem servidor dedicado).
 │  • Dashboard de relatório   │        │  GET  /audits/{id}/report     │
 │                             │        │  GET  /providers              │
 └─────────────────────────────┘        └───────────────┬───────────────┘
-        localhost:3000                                  │ invoca
+        localhost:3020                                  │ invoca
                                                         ▼
                                         ┌───────────────────────────────┐
                                         │  Núcleo — grafo LangGraph      │
@@ -46,8 +46,8 @@ agent existente, em **modo local/desktop** (um usuário, sem servidor dedicado).
                                         └───────────────────────────────┘
 ```
 
-- **Backend:** FastAPI + Uvicorn em `127.0.0.1:8000`. Reusa `build_graph()`.
-- **Frontend:** Next.js (App Router) em `127.0.0.1:3000`, consumindo a API via
+- **Backend:** FastAPI + Uvicorn em `127.0.0.1:8020`. Reusa `build_graph()`.
+- **Frontend:** Next.js (App Router) em `127.0.0.1:3020`, consumindo a API via
   `fetch` + `EventSource` (SSE).
 - **Persistência:** `SqliteSaver` (arquivo `~/.config/auditor/audits.sqlite`) para
   o estado do grafo (permite pausar no `interrupt` e retomar entre requisições e
@@ -131,7 +131,7 @@ O `SqliteSaver` garante que o estado sobrevive à espera pela resposta (a task d
 background aguarda um `asyncio.Event` até `/answers` chegar).
 
 ### 3.5 CORS e segurança local
-- CORS restrito a `http://localhost:3000` / `127.0.0.1:3000`.
+- CORS restrito a `http://localhost:3020` / `127.0.0.1:3020`.
 - Backend escuta **apenas** em `127.0.0.1` (não expõe na rede).
 - `project_path` é lido do disco local — aceitável para ferramenta de um usuário;
   as tools continuam **read-only**. Validar que o caminho existe e é diretório.
@@ -220,12 +220,12 @@ api = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "sse-starlette>=2.1"]
 Um alvo no `Makefile` sobe as duas partes:
 
 ```makefile
-api:   ; . .venv/bin/activate && uvicorn auditor.api.main:app --host 127.0.0.1 --port 8000
+api:   ; . .venv/bin/activate && uvicorn auditor.api.main:app --host 127.0.0.1 --port 8020
 web:   ; cd web && npm run dev
 dev:   ; make -j2 api web        # backend + frontend juntos
 ```
 
-Fluxo do usuário: `make dev` → abrir `http://localhost:3000`.
+Fluxo do usuário: `make dev` → abrir `http://localhost:3020`.
 
 ---
 

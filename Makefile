@@ -1,4 +1,4 @@
-.PHONY: install hooks test lint run api clean
+.PHONY: install hooks test lint run api web dev web-install clean
 
 install: hooks
 	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
@@ -18,8 +18,19 @@ run:
 	. .venv/bin/activate && auditor audit "$(PROJ)" $(if $(GOAL),--goal "$(GOAL)",)
 
 api:
-	@# Sobe a API FastAPI em http://127.0.0.1:8000 (docs em /docs)
+	@# Sobe a API FastAPI em http://127.0.0.1:8020 (docs em /docs)
 	. .venv/bin/activate && auditor serve --reload
+
+web-install:
+	cd web && npm install
+
+web:
+	@# Frontend Next.js em http://localhost:3020
+	cd web && npm run dev
+
+dev:
+	@# Sobe API + frontend juntos (Ctrl-C encerra ambos)
+	$(MAKE) -j2 api web
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache **/__pycache__ audit-reports
