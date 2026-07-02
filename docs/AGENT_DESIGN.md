@@ -1,100 +1,100 @@
-# Design do Agent & Decisões — Audit Mind AI
+# Agent Design & Decisions — Audit Mind AI
 
-Este documento registra as decisões de design e como elas refletem **boas práticas
-de LangChain/LangGraph**.
+This document records the design decisions and how they reflect **LangChain/LangGraph
+best practices**.
 
-## 1. Por que LangGraph (e não um AgentExecutor monolítico)?
+## 1. Why LangGraph (and not a monolithic AgentExecutor)?
 
-Auditoria é um processo com **etapas distintas, dependências claras e um ponto de
-interação humana**. LangGraph modela isso como um grafo explícito de estados, o que traz:
+Auditing is a process with **distinct stages, clear dependencies, and a single point of
+human interaction**. LangGraph models this as an explicit state graph, which brings:
 
-- **Controle de fluxo determinístico** — a ordem descoberta → esclarecimento →
-  plano → auditoria → síntese → relatório é garantida pelas arestas do grafo.
-- **Human-in-the-loop nativo** — `interrupt`/`Command(resume=...)` com checkpointer.
-- **Observabilidade** — cada nó é um passo inspecionável (`stream_mode="updates"`).
-- **Retomada** — com checkpointer persistente, uma auditoria pode ser pausada e retomada.
+- **Deterministic flow control** — the discovery → clarification →
+  plan → audit → synthesis → report order is guaranteed by the graph's edges.
+- **Native human-in-the-loop** — `interrupt`/`Command(resume=...)` with a checkpointer.
+- **Observability** — each node is an inspectable step (`stream_mode="updates"`).
+- **Resumption** — with a persistent checkpointer, an audit can be paused and resumed.
 
-Um `AgentExecutor` genérico seria opaco e difícil de pausar para conversa.
+A generic `AgentExecutor` would be opaque and hard to pause for conversation.
 
-## 2. Padrão "orquestrador + investigadores"
+## 2. "Orchestrator + investigators" pattern
 
-O grafo principal é o **orquestrador**; a fase de auditoria delega a
-**sub-agents ReAct** especializados (um por dimensão). Isso é o padrão
-*supervisor/worker*:
+The main graph is the **orchestrator**; the audit phase delegates to specialized
+**ReAct sub-agents** (one per dimension). This is the
+*supervisor/worker* pattern:
 
-- Cada investigador tem um **prompt focado** e o **mesmo conjunto de ferramentas**.
-- A separação evita que um único prompt gigante tente cobrir tudo (o que degrada a qualidade).
-- Facilita adicionar/remover dimensões sem tocar no restante do grafo.
+- Each investigator has a **focused prompt** and the **same set of tools**.
+- The separation avoids a single giant prompt trying to cover everything (which degrades quality).
+- It makes adding/removing dimensions easy without touching the rest of the graph.
 
-## 3. Saída estruturada em vez de parsing de texto
+## 3. Structured output instead of text parsing
 
-Todos os pontos de decisão usam **saída estruturada Pydantic**:
+All decision points use **Pydantic structured output**:
 
-- `with_structured_output(ClarifyingQuestions)` — perguntas de esclarecimento.
-- `with_structured_output(AuditPlan)` — seleção de dimensões.
-- `create_react_agent(..., response_format=DimensionResult)` — achados.
+- `with_structured_output(ClarifyingQuestions)` — clarification questions.
+- `with_structured_output(AuditPlan)` — dimension selection.
+- `create_react_agent(..., response_format=DimensionResult)` — findings.
 
-Vantagens: validação automática, retries do provedor em caso de schema inválido,
-zero parsing frágil de string. É a prática recomendada atual do LangChain.
+Advantages: automatic validation, provider retries on invalid schema,
+zero fragile string parsing. It is LangChain's current recommended practice.
 
-## 4. Ferramentas read-only e seguras
+## 4. Read-only and safe tools
 
-- O agent **audita, não corrige** → todas as ferramentas são somente leitura.
-- Escopo restrito à raiz do projeto com **bloqueio de path traversal**.
-- Limites de tamanho/quantidade → controle de custo e latência.
+- The agent **audits, it does not fix** → all tools are read-only.
+- Scope restricted to the project root with **path traversal blocking**.
+- Size/quantity limits → cost and latency control.
 
-Isso segue o princípio de **menor privilégio** para ferramentas de agent.
+This follows the principle of **least privilege** for agent tools.
 
-## 5. Prompts centralizados e versionáveis
+## 5. Centralized and versionable prompts
 
-Todos os prompts vivem em `prompts/templates.py`, separados da lógica. Isso permite
-iterar em prompt engineering sem alterar código de orquestração e facilita revisão.
+All prompts live in `prompts/templates.py`, separated from the logic. This allows
+iterating on prompt engineering without changing orchestration code and makes review easier.
 
-Princípios embutidos na persona (`SYSTEM_PERSONA`):
-- **Evidência obrigatória** — reduz alucinação ("se não verificou, não afirme").
-- **Precisão > volume** — evita inflar o relatório com achados especulativos.
-- **Sempre acionável** — todo achado exige recomendação.
+Principles built into the persona (`SYSTEM_PERSONA`):
+- **Evidence required** — reduces hallucination ("if you did not verify it, do not assert it").
+- **Precision > volume** — avoids inflating the report with speculative findings.
+- **Always actionable** — every finding requires a recommendation.
 
-## 6. Determinismo e reprodutibilidade
+## 6. Determinism and reproducibility
 
-Temperatura padrão `0`. Auditorias devem ser o mais reproduzíveis possível; a
-variabilidade criativa não é desejável aqui.
+Default temperature `0`. Audits should be as reproducible as possible;
+creative variability is not desirable here.
 
-## 7. Robustez
+## 7. Robustness
 
-- Falha de um investigador é **isolada** (try/except por dimensão).
-- Validação de dimensões contra o enum, com _fallback_ para um conjunto padrão.
-- Serialização JSON-safe do estado (compatível com checkpointers persistentes).
-- Limites de recursão nos sub-agents (evita loops infinitos de tool-calling).
+- A single investigator's failure is **isolated** (try/except per dimension).
+- Dimension validation against the enum, with a _fallback_ to a default set.
+- JSON-safe serialization of the state (compatible with persistent checkpointers).
+- Recursion limits on the sub-agents (avoids infinite tool-calling loops).
 
-## 8. Decisões deliberadamente adiadas (trade-offs)
+## 8. Deliberately deferred decisions (trade-offs)
 
-| Decisão | v0.1 | Por quê | Evolução |
+| Decision | v0.1 | Why | Evolution |
 | --- | --- | --- | --- |
-| Paralelismo de dimensões | Sequencial | Previsibilidade de custo e logs legíveis | *Send API* (ROADMAP) |
-| Checkpointer | `MemorySaver` | Simplicidade | `SqliteSaver`/`Postgres` |
-| Scanners externos | Ausente | Manter zero-dependência de toolchain | Integração opcional |
-| Multi-provider | ✅ via `init_chat_model` | Flexibilidade sem lock-in de provedor | Presets por provedor |
+| Dimension parallelism | Sequential | Cost predictability and readable logs | *Send API* (ROADMAP) |
+| Checkpointer | `MemorySaver` | Simplicity | `SqliteSaver`/`Postgres` |
+| External scanners | Absent | Keep zero toolchain dependency | Optional integration |
+| Multi-provider | ✅ via `init_chat_model` | Flexibility without provider lock-in | Per-provider presets |
 
-## 9. Extensibilidade
+## 9. Extensibility
 
-- **Nova dimensão:** adicione ao enum `AuditDimension` e a `DIMENSION_GUIDANCE`. O
-  planejador passa a considerá-la automaticamente.
-- **Nova ferramenta:** adicione em `make_project_tools` — todos os investigadores a recebem.
-- **Novo formato de relatório:** adicione um renderer em `report/` e chame no `report_node`.
-- **Outro LLM:** defina `AUDITOR_PROVIDER`/`AUDITOR_MODEL` (ou `--provider`/`--model`).
-  A factory em `llm.py` usa `init_chat_model`, então qualquer provedor suportado
-  pelo LangChain funciona sem alteração de código — basta instalar o pacote.
+- **New dimension:** add it to the `AuditDimension` enum and to `DIMENSION_GUIDANCE`. The
+  planner will then consider it automatically.
+- **New tool:** add it in `make_project_tools` — every investigator receives it.
+- **New report format:** add a renderer in `report/` and call it in `report_node`.
+- **Another LLM:** set `AUDITOR_PROVIDER`/`AUDITOR_MODEL` (or `--provider`/`--model`).
+  The factory in `llm.py` uses `init_chat_model`, so any provider supported
+  by LangChain works without code changes — just install the package.
 
-## 10. Boas práticas aplicadas (checklist)
+## 10. Best practices applied (checklist)
 
-- [x] Grafo explícito com estado tipado e reducers.
-- [x] Human-in-the-loop com `interrupt` + checkpointer.
-- [x] Isolamento da geração de perguntas do ponto de interrupção (evita chamada dupla).
-- [x] Saída estruturada Pydantic em todos os pontos de decisão.
-- [x] Sub-agents ReAct com ferramentas e `response_format`.
-- [x] Ferramentas de menor privilégio (read-only, escopadas).
-- [x] Prompts centralizados e versionáveis.
-- [x] Configuração externalizada (12-factor).
-- [x] Tratamento de falhas por etapa.
-- [x] Testes offline que não dependem do LLM.
+- [x] Explicit graph with typed state and reducers.
+- [x] Human-in-the-loop with `interrupt` + checkpointer.
+- [x] Isolation of question generation from the interruption point (avoids double calls).
+- [x] Pydantic structured output at every decision point.
+- [x] ReAct sub-agents with tools and `response_format`.
+- [x] Least-privilege tools (read-only, scoped).
+- [x] Centralized and versionable prompts.
+- [x] Externalized configuration (12-factor).
+- [x] Per-stage failure handling.
+- [x] Offline tests that do not depend on the LLM.

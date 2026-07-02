@@ -1,277 +1,280 @@
-# Spec de Frontend & API — Audit Mind AI
+# Frontend & API Spec — Audit Mind AI
 
-Especificação de arquitetura para uma interface web (React + Next.js) sobre o
-agent existente, em **modo local/desktop** (um usuário, sem servidor dedicado).
+Architecture specification for a web interface (React + Next.js) on top of the
+existing agent, in **local/desktop mode** (single user, no dedicated server).
 
-> Status: **design** (nenhum código ainda). Este documento antecede a implementação.
-
----
-
-## 1. Objetivos e restrições
-
-- **Reaproveitar o núcleo:** o grafo LangGraph (`src/auditor`) não muda; a API é
-  apenas mais uma camada de entrada, ao lado do CLI.
-- **Local/desktop:** backend e frontend rodam em `localhost`, um usuário. Sem
-  multi-tenant, sem login. Simplicidade > escalabilidade.
-- **Segurança do segredo:** a chave do provedor de LLM vive **apenas no backend**
-  (`.env` / `~/.config/auditor/.env`) e **nunca** trafega para o navegador.
-- **Experiência rica:** dashboard de achados (severidades, filtros), progresso ao
-  vivo e chat de esclarecimentos.
-
-### Não-objetivos (v1)
-- Autenticação/usuários, multi-tenant, billing.
-- Execução remota / fila distribuída.
-- Empacotamento como app nativo (Electron/Tauri) — considerado no §10.
+> Status: **design** (no code yet). This document precedes the implementation.
 
 ---
 
-## 2. Arquitetura
+## 1. Objectives and constraints
+
+- **Reuse the core:** the LangGraph graph (`src/auditor`) does not change; the API
+  is just one more entry layer, alongside the CLI.
+- **Local/desktop:** backend and frontend run on `localhost`, single user. No
+  multi-tenant, no login. Simplicity > scalability.
+- **Secret security:** the LLM provider key lives **only in the backend**
+  (`.env` / `~/.config/auditor/.env`) and **never** travels to the browser.
+- **Rich experience:** findings dashboard (severities, filters), live progress,
+  and clarifications chat.
+
+### Non-objectives (v1)
+- Authentication/users, multi-tenant, billing.
+- Remote execution / distributed queue.
+- Packaging as a native app (Electron/Tauri) — considered in §10.
+
+---
+
+## 2. Architecture
 
 ```
 ┌─────────────────────────────┐        ┌───────────────────────────────┐
 │  Frontend (Next.js/React)   │        │  Backend (FastAPI, localhost)  │
 │                             │  HTTP  │                               │
-│  • Nova auditoria (form)    │ ─────► │  POST /audits                 │
-│  • Progresso ao vivo        │  SSE   │  GET  /audits/{id}/stream     │
-│  • Chat de esclarecimentos  │ ◄───── │  POST /audits/{id}/answers    │
-│  • Dashboard de relatório   │        │  GET  /audits/{id}/report     │
+│  • New audit (form)         │ ─────► │  POST /audits                 │
+│  • Live progress            │  SSE   │  GET  /audits/{id}/stream     │
+│  • Clarifications chat       │ ◄───── │  POST /audits/{id}/answers    │
+│  • Report dashboard         │        │  GET  /audits/{id}/report     │
 │                             │        │  GET  /providers              │
 └─────────────────────────────┘        └───────────────┬───────────────┘
-        localhost:3020                                  │ invoca
+        localhost:3020                                  │ invokes
                                                         ▼
                                         ┌───────────────────────────────┐
-                                        │  Núcleo — grafo LangGraph      │
+                                        │  Core — LangGraph graph        │
                                         │  (discovery→clarify→audit→…)   │
                                         │  Checkpointer: SqliteSaver     │
                                         └───────────────────────────────┘
 ```
 
-- **Backend:** FastAPI + Uvicorn em `127.0.0.1:8020`. Reusa `build_graph()`.
-- **Frontend:** Next.js (App Router) em `127.0.0.1:3020`, consumindo a API via
+- **Backend:** FastAPI + Uvicorn on `127.0.0.1:8010`. Reuses `build_graph()`.
+- **Frontend:** Next.js (App Router) on `127.0.0.1:3020`, consuming the API via
   `fetch` + `EventSource` (SSE).
-- **Persistência:** `SqliteSaver` (arquivo `~/.config/auditor/audits.sqlite`) para
-  o estado do grafo (permite pausar no `interrupt` e retomar entre requisições e
-  até após reinício do backend). Metadados de auditorias (lista/histórico) na
-  mesma base.
+- **Persistence:** `SqliteSaver` (file `~/.config/auditor/audits.sqlite`) for the
+  graph state (allows pausing at the `interrupt` and resuming between requests and
+  even after a backend restart). Audit metadata (list/history) in the same
+  database.
 
 ---
 
-## 3. Design da API (FastAPI)
+## 3. API design (FastAPI)
 
 ### 3.1 Endpoints
 
-| Método | Rota | Descrição |
+| Method | Route | Description |
 | --- | --- | --- |
-| `GET` | `/providers` | Lista provedores suportados (reusa `PROVIDER_PACKAGE`). |
-| `POST` | `/audits` | Cria e inicia uma auditoria. Retorna `{id, status}`. |
-| `GET` | `/audits` | Lista auditorias (histórico local). |
-| `GET` | `/audits/{id}` | Estado atual + resumo (health score, contagem por severidade). |
-| `GET` | `/audits/{id}/stream` | **SSE**: eventos de progresso, esclarecimento e conclusão. |
-| `POST` | `/audits/{id}/answers` | Envia respostas de esclarecimento → retoma o grafo. |
-| `GET` | `/audits/{id}/findings` | Achados estruturados (JSON) para o dashboard. |
-| `GET` | `/audits/{id}/report?format=html\|md` | Relatório renderizado. |
-| `DELETE` | `/audits/{id}` | Remove a auditoria e artefatos. |
+| `GET` | `/providers` | Lists supported providers (reuses `PROVIDER_PACKAGE`). |
+| `POST` | `/audits` | Creates and starts an audit. Returns `{id, status}`. |
+| `GET` | `/audits` | Lists audits (local history). |
+| `GET` | `/audits/{id}` | Current state + summary (health score, count by severity). |
+| `GET` | `/audits/{id}/stream` | **SSE**: progress, clarification, and completion events. |
+| `POST` | `/audits/{id}/answers` | Sends clarification answers → resumes the graph. |
+| `GET` | `/audits/{id}/findings` | Structured findings (JSON) for the dashboard. |
+| `GET` | `/audits/{id}/report?format=html\|md` | Rendered report. |
+| `DELETE` | `/audits/{id}` | Removes the audit and artifacts. |
 
-### 3.2 Schemas (Pydantic — reaproveitados do núcleo)
+### 3.2 Schemas (Pydantic — reused from the core)
 
 ```jsonc
 // POST /audits  (request)
 {
   "project_path": "/home/joao/proj",
-  "goal": "Revisão de segurança pré-produção",  // opcional
-  "provider": "deepseek",                        // opcional (sobrescreve .env)
-  "model": "deepseek-chat",                      // opcional
-  "interactive": true                            // se false, pula esclarecimentos
+  "goal": "Pre-production security review",      // optional
+  "provider": "deepseek",                        // optional (overrides .env)
+  "model": "deepseek-chat",                      // optional
+  "interactive": true                            // if false, skips clarifications
 }
 
 // POST /audits/{id}/answers  (request)
-{ "answers": { "Ambiente de produção?": "sim, produção crítica" } }
+{ "answers": { "Production environment?": "yes, critical production" } }
 ```
 
-Os achados já existem como `Finding` (Pydantic) no núcleo — o endpoint
-`/findings` serializa `state["findings"]` diretamente (nenhum renderer novo).
+Findings already exist as `Finding` (Pydantic) in the core — the `/findings`
+endpoint serializes `state["findings"]` directly (no new renderer).
 
-### 3.3 Streaming (SSE) — o ponto central
+### 3.3 Streaming (SSE) — the central point
 
-O backend roda o grafo em uma **task de background** por auditoria e publica
-eventos numa fila em memória; o `GET /stream` drena a fila (com replay dos eventos
-já ocorridos, para reconexão). Tipos de evento SSE:
+The backend runs the graph in a **background task** per audit and publishes
+events to an in-memory queue; `GET /stream` drains the queue (with replay of
+events that already occurred, for reconnection). SSE event types:
 
-| `event` | `data` | Quando |
+| `event` | `data` | When |
 | --- | --- | --- |
-| `phase` | `{node, label, status}` | Início/fim de cada nó (discovery, planning, …). |
-| `investigator` | `{dimension, status, findings_count}` | Progresso por dimensão na fase de auditoria. |
-| `clarification` | `{questions:[{question, rationale}]}` | Grafo atingiu o `interrupt`; front abre o chat. |
-| `finding` | `{dimension, title, severity, …}` | (Opcional) achado emitido em tempo real. |
-| `completed` | `{health_score, counts, report_url}` | Auditoria concluída. |
-| `error` | `{message}` | Falha. |
+| `phase` | `{node, label, status}` | Start/end of each node (discovery, planning, …). |
+| `investigator` | `{dimension, status, findings_count}` | Per-dimension progress in the audit phase. |
+| `clarification` | `{questions:[{question, rationale}]}` | Graph reached the `interrupt`; front opens the chat. |
+| `finding` | `{dimension, title, severity, …}` | (Optional) finding emitted in real time. |
+| `completed` | `{health_score, counts, report_url}` | Audit completed. |
+| `error` | `{message}` | Failure. |
 
-**Progresso granular por investigador:** hoje o nó `audit` processa todas as
-dimensões internamente (emitiria só um evento no `stream_mode="updates"`). Para o
-front receber progresso por dimensão, o nó `audit` deve emitir eventos via o
-**stream writer do LangGraph** (`get_stream_writer()` / `stream_mode="custom"`).
-Essa é a única alteração relevante no núcleo (pequena e opcional).
+**Granular per-investigator progress:** today the `audit` node processes all
+dimensions internally (it would emit only one event in `stream_mode="updates"`).
+For the front to receive per-dimension progress, the `audit` node must emit
+events via the **LangGraph stream writer** (`get_stream_writer()` /
+`stream_mode="custom"`). This is the only relevant change in the core (small and
+optional).
 
-### 3.4 Fluxo human-in-the-loop (interrupt) na web
+### 3.4 Human-in-the-loop (interrupt) flow on the web
 
 ```
-Frontend                         Backend                        Grafo
+Frontend                         Backend                        Graph
    │  POST /audits                  │                              │
-   │ ─────────────────────────────►│  cria thread_id, task bg ───►│ discovery…
-   │  GET /stream (abre SSE)        │                              │
+   │ ─────────────────────────────►│  creates thread_id, bg task─►│ discovery…
+   │  GET /stream (opens SSE)       │                              │
    │ ◄──── phase(discovery) ────────│ ◄────────────────────────────│
-   │ ◄──── clarification(perguntas)─│ ◄── interrupt() ─────────────│ (pausa)
-   │  [usuário responde no chat]    │                              │
-   │  POST /answers ───────────────►│  Command(resume=answers) ───►│ (retoma)
+   │ ◄──── clarification(questions)─│ ◄── interrupt() ─────────────│ (pauses)
+   │  [user answers in the chat]    │                              │
+   │  POST /answers ───────────────►│  Command(resume=answers) ───►│ (resumes)
    │ ◄──── phase(planning/audit) ───│ ◄────────────────────────────│
    │ ◄──── completed ───────────────│ ◄────────────────────────────│ END
 ```
 
-O `SqliteSaver` garante que o estado sobrevive à espera pela resposta (a task de
-background aguarda um `asyncio.Event` até `/answers` chegar).
+The `SqliteSaver` ensures the state survives while waiting for the answer (the
+background task waits on an `asyncio.Event` until `/answers` arrives).
 
-### 3.5 CORS e segurança local
-- CORS restrito a `http://localhost:3020` / `127.0.0.1:3020`.
-- Backend escuta **apenas** em `127.0.0.1` (não expõe na rede).
-- `project_path` é lido do disco local — aceitável para ferramenta de um usuário;
-  as tools continuam **read-only**. Validar que o caminho existe e é diretório.
-- Chave de LLM nunca vai ao browser; `GET /providers` informa só nomes/credencial exigida, não valores.
+### 3.5 CORS and local security
+- CORS restricted to `http://localhost:3020` / `127.0.0.1:3020`.
+- Backend listens **only** on `127.0.0.1` (does not expose to the network).
+- `project_path` is read from the local disk — acceptable for a single-user tool;
+  the tools remain **read-only**. Validate that the path exists and is a directory.
+- The LLM key never goes to the browser; `GET /providers` reports only
+  names/required credential, not values.
 
 ---
 
-## 4. Design do Frontend (Next.js)
+## 4. Frontend design (Next.js)
 
-### 4.1 Telas
+### 4.1 Screens
 
-1. **Nova Auditoria** — formulário: caminho do projeto, objetivo, provedor/modelo
-   (dropdown de `/providers`), toggle "fazer perguntas de esclarecimento".
-2. **Execução (ao vivo)** — timeline das fases + lista de investigadores por
-   dimensão com status; abre um **painel de chat** quando chega `clarification`.
-3. **Relatório (dashboard)** — cabeçalho com **health score** e distribuição por
-   severidade; lista de achados filtrável (por dimensão/severidade), cada um
-   expansível (descrição, evidência, recomendação, arquivo:linha); botões de
-   export (HTML/MD/JSON); resumo executivo.
-4. **Histórico** — lista de auditorias anteriores (de `GET /audits`).
+1. **New Audit** — form: project path, goal, provider/model (dropdown from
+   `/providers`), "ask clarification questions" toggle.
+2. **Run (live)** — timeline of phases + list of investigators per dimension with
+   status; opens a **chat panel** when a `clarification` arrives.
+3. **Report (dashboard)** — header with **health score** and distribution by
+   severity; filterable list of findings (by dimension/severity), each one
+   expandable (description, evidence, recommendation, file:line); export buttons
+   (HTML/MD/JSON); executive summary.
+4. **History** — list of previous audits (from `GET /audits`).
 
 ### 4.2 Wireframes (ASCII)
 
 ```
-┌── Nova Auditoria ─────────────────────────────┐
-│ Caminho:  [/home/joao/proj............] [📁]  │
-│ Objetivo: [Revisão pré-produção............]  │
-│ Provedor: [deepseek ▾]  Modelo: [deepseek-chat]│
-│ [x] Fazer perguntas de esclarecimento          │
-│                              [ Iniciar auditoria ]
+┌── New Audit ──────────────────────────────────┐
+│ Path:     [/home/joao/proj............] [📁]  │
+│ Goal:     [Pre-production review...........]  │
+│ Provider: [deepseek ▾]  Model: [deepseek-chat] │
+│ [x] Ask clarification questions                │
+│                                  [ Start audit ]
 └───────────────────────────────────────────────┘
 
-┌── Execução ───────────────────────────────────┐
-│ ✓ Descoberta      ✓ Planejamento               │
-│ ⏳ Auditoria                                    │
+┌── Run ────────────────────────────────────────┐
+│ ✓ Discovery       ✓ Planning                   │
+│ ⏳ Audit                                        │
 │    ✓ security   (5)   ⏳ quality   … perf …     │
-│ ┌ Esclarecimentos ───────────────────────────┐ │
-│ │ 1. Ambiente de produção?  [__________] [ok] │ │
+│ ┌ Clarifications ────────────────────────────┐ │
+│ │ 1. Production environment? [_________] [ok] │ │
 │ └─────────────────────────────────────────────┘│
 └───────────────────────────────────────────────┘
 
-┌── Relatório ──────────────────────────────────┐
-│  Saúde: 62/100   ● crit 1  ● alto 3  ● médio 5 │
-│  Filtros: [dimensão ▾] [severidade ▾]  [export]│
-│  ┌ [CRÍTICO] Segredo hardcoded  app.py:16  ▸  │ │
-│  ┌ [ALTO]    XSS no relatório    renderer  ▸  │ │
+┌── Report ─────────────────────────────────────┐
+│  Health: 62/100  ● crit 1  ● high 3  ● med 5   │
+│  Filters: [dimension ▾] [severity ▾]  [export] │
+│  ┌ [CRITICAL] Hardcoded secret  app.py:16  ▸ │ │
+│  ┌ [HIGH]     XSS in the report  renderer  ▸ │ │
 └───────────────────────────────────────────────┘
 ```
 
-### 4.3 Stack técnica do front
+### 4.3 Frontend tech stack
 - **Next.js (App Router) + TypeScript**.
-- **TanStack Query** para dados; **EventSource** (SSE) para o stream.
-- **Tailwind CSS** + componentes (shadcn/ui) para o dashboard.
-- Renderização de Markdown (react-markdown) para o resumo executivo.
-- Sem estado global pesado; um store leve (Zustand) para a auditoria ativa.
+- **TanStack Query** for data; **EventSource** (SSE) for the stream.
+- **Tailwind CSS** + components (shadcn/ui) for the dashboard.
+- Markdown rendering (react-markdown) for the executive summary.
+- No heavy global state; a lightweight store (Zustand) for the active audit.
 
 ---
 
-## 5. Estrutura de diretórios proposta
+## 5. Proposed directory structure
 
 ```
 auditor-IA/
-├── src/auditor/            # núcleo (existente) — inalterado, exceto stream writer no audit
-│   └── api/                # NOVO: FastAPI
-│       ├── main.py         # app, CORS, rotas
+├── src/auditor/            # core (existing) — unchanged, except stream writer in audit
+│   └── api/                # NEW: FastAPI
+│       ├── main.py         # app, CORS, routes
 │       ├── routes.py       # endpoints
-│       ├── streaming.py    # gerência de tasks + fila SSE
+│       ├── streaming.py    # task management + SSE queue
 │       ├── schemas.py      # request/response models
-│       └── store.py        # SqliteSaver + metadados
-├── web/                    # NOVO: frontend Next.js
-│   ├── app/                # rotas (new, run, report, history)
+│       └── store.py        # SqliteSaver + metadata
+├── web/                    # NEW: Next.js frontend
+│   ├── app/                # routes (new, run, report, history)
 │   ├── components/
-│   └── lib/api.ts          # cliente da API + SSE
-└── pyproject.toml          # + extra opcional [api] (fastapi, uvicorn, sse-starlette)
+│   └── lib/api.ts          # API client + SSE
+└── pyproject.toml          # + optional extra [api] (fastapi, uvicorn, sse-starlette)
 ```
 
-Novo extra em `pyproject.toml`:
+New extra in `pyproject.toml`:
 ```toml
 api = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "sse-starlette>=2.1"]
 ```
 
 ---
 
-## 6. Experiência de execução local
+## 6. Local run experience
 
-Um alvo no `Makefile` sobe as duas partes:
+A `Makefile` target brings up both parts:
 
 ```makefile
-api:   ; . .venv/bin/activate && uvicorn auditor.api.main:app --host 127.0.0.1 --port 8020
+api:   ; . .venv/bin/activate && uvicorn auditor.api.main:app --host 127.0.0.1 --port 8010
 web:   ; cd web && npm run dev
-dev:   ; make -j2 api web        # backend + frontend juntos
+dev:   ; make -j2 api web        # backend + frontend together
 ```
 
-Fluxo do usuário: `make dev` → abrir `http://localhost:3020`.
+User flow: `make dev` → open `http://localhost:3020`.
 
 ---
 
-## 7. Alterações necessárias no núcleo (mínimas)
+## 7. Required core changes (minimal)
 
-1. **Stream writer no nó `audit`** — emitir eventos por dimensão (`get_stream_writer()`),
-   preservando o comportamento atual do CLI. **Única mudança de código essencial.**
-2. **Checkpointer configurável** — `build_graph()` já aceita `checkpointer`; a API
-   passa um `SqliteSaver`. Sem refactor.
-3. **Export JSON de achados** — trivial: serializar `state["findings"]` (já são dicts).
+1. **Stream writer in the `audit` node** — emit per-dimension events
+   (`get_stream_writer()`), preserving the current CLI behavior. **The only
+   essential code change.**
+2. **Configurable checkpointer** — `build_graph()` already accepts a
+   `checkpointer`; the API passes a `SqliteSaver`. No refactor.
+3. **JSON export of findings** — trivial: serialize `state["findings"]` (already dicts).
 
-Nada no fluxo de auditoria em si muda — o núcleo permanece agnóstico de interface.
+Nothing in the audit flow itself changes — the core remains interface-agnostic.
 
 ---
 
-## 8. Plano de implementação em fases
+## 8. Phased implementation plan
 
-| Fase | Entregável | Depende de |
+| Phase | Deliverable | Depends on |
 | --- | --- | --- |
-| **F1 — API base** | `/providers`, `/audits` (start), `/audits/{id}`, `/report` (modo `--no-questions`); SqliteSaver | núcleo |
-| **F2 — Streaming** | SSE de fases + stream writer por dimensão no nó `audit` | F1 |
+| **F1 — Base API** | `/providers`, `/audits` (start), `/audits/{id}`, `/report` (`--no-questions` mode); SqliteSaver | core |
+| **F2 — Streaming** | Phase SSE + per-dimension stream writer in the `audit` node | F1 |
 | **F3 — Human-in-the-loop** | `clarification` via SSE + `POST /answers` (resume) | F2 |
-| **F4 — Frontend MVP** | Telas Nova Auditoria + Execução + Relatório | F1–F3 |
-| **F5 — Dashboard & histórico** | Filtros, export, tela de histórico | F4 |
-| **F6 — Polimento** | Erros, reconexão SSE, empty states, responsivo | F5 |
+| **F4 — Frontend MVP** | New Audit + Run + Report screens | F1–F3 |
+| **F5 — Dashboard & history** | Filters, export, history screen | F4 |
+| **F6 — Polish** | Errors, SSE reconnection, empty states, responsive | F5 |
 
-MVP navegável ≈ F1→F4.
-
----
-
-## 9. Riscos e decisões em aberto
-
-- **Progresso por dimensão** exige o stream writer (senão o progresso fica "grosso",
-  só por nó). Recomendado implementar em F2.
-- **Auditorias longas**: definir timeout/limite de tokens por auditoria e feedback
-  claro de custo (já temos limites em `config`).
-- **Reconexão SSE**: manter replay dos eventos por auditoria (buffer em memória +
-  estado no SQLite) para o front reconectar sem perder progresso.
-- **Segurança do `project_path`**: local/single-user é aceitável ler qualquer
-  caminho; se um dia virar multiusuário, isso precisa de sandbox/allowlist.
+Navigable MVP ≈ F1→F4.
 
 ---
 
-## 10. Evolução futura (fora do escopo v1)
-- Empacotar como app desktop (Tauri/Electron) para distribuição sem terminal.
-- Autenticação + histórico por usuário (caminho para o cenário "app web").
-- WebSocket no lugar de SSE se surgir necessidade de comunicação bidirecional intensa.
-- "Chat com o relatório" (perguntas sobre os achados após a auditoria).
+## 9. Risks and open decisions
+
+- **Per-dimension progress** requires the stream writer (otherwise progress stays
+  "coarse", only per node). Recommended to implement in F2.
+- **Long audits**: define a timeout/token limit per audit and clear cost feedback
+  (we already have limits in `config`).
+- **SSE reconnection**: keep the replay of events per audit (in-memory buffer +
+  state in SQLite) so the front can reconnect without losing progress.
+- **`project_path` security**: local/single-user makes it acceptable to read any
+  path; if it ever becomes multi-user, this needs a sandbox/allowlist.
+
+---
+
+## 10. Future evolution (out of v1 scope)
+- Package as a desktop app (Tauri/Electron) for distribution without a terminal.
+- Authentication + per-user history (path toward the "web app" scenario).
+- WebSocket instead of SSE if a need for intensive bidirectional communication arises.
+- "Chat with the report" (questions about the findings after the audit).
 ```

@@ -1,33 +1,33 @@
-# Guia de Uso — Audit Mind AI
+# Usage Guide — Audit Mind AI
 
-## 1. Instalação
+## 1. Installation
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"      # ou: pip install -r requirements.txt
-make hooks                   # ativa o hook de pre-commit de segurança
+pip install -e ".[dev]"      # or: pip install -r requirements.txt
+make hooks                   # enable the security pre-commit hook
 ```
 
-Requer Python ≥ 3.10.
+Requires Python ≥ 3.10.
 
-### Instalação global (rodar em qualquer terminal)
+### Global installation (run in any terminal)
 
-Por padrão, `auditor` só existe dentro do venv. Para usá-lo de qualquer diretório:
+By default, `auditor` only exists inside the venv. To use it from any directory:
 
 ```bash
-# binário no PATH
+# binary on PATH
 ln -sf "$(pwd)/.venv/bin/auditor" ~/.local/bin/auditor
-# config global (lida de qualquer lugar)
+# global config (read from anywhere)
 mkdir -p ~/.config/auditor && cp .env ~/.config/auditor/.env && chmod 600 ~/.config/auditor/.env
 ```
 
-Garanta que `~/.local/bin` está no PATH (no Ubuntu costuma estar; senão adicione
-`export PATH="$HOME/.local/bin:$PATH"` ao `~/.bashrc`).
+Make sure `~/.local/bin` is on your PATH (on Ubuntu it usually is; otherwise add
+`export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc`).
 
-## 2. Configuração
+## 2. Configuration
 
-Copie o exemplo e preencha o provedor e a credencial escolhidos:
+Copy the example and fill in your chosen provider and credential:
 
 ```bash
 cp .env.example .env
@@ -35,141 +35,141 @@ cp .env.example .env
 
 ```dotenv
 AUDITOR_PROVIDER=deepseek            # anthropic | openai | google_genai | deepseek | ollama | …
-DEEPSEEK_API_KEY=sk-...              # credencial do provedor escolhido
-AUDITOR_MODEL=deepseek-chat          # modelo (depende do provedor)
+DEEPSEEK_API_KEY=sk-...              # credential for the chosen provider
+AUDITOR_MODEL=deepseek-chat          # model (depends on the provider)
 AUDITOR_TEMPERATURE=0
 AUDITOR_OUTPUT_DIR=./audit-reports
 ```
 
-### Precedência de configuração
+### Configuration precedence
 
-O agent carrega as configurações nesta ordem (**a primeira fonte a definir uma
-variável vence**):
+The agent loads its configuration in this order (**the first source to define a
+variable wins**):
 
-1. variáveis já exportadas no shell (ex.: `export DEEPSEEK_API_KEY=...`);
-2. `.env` do diretório atual (fluxo de desenvolvimento dentro do projeto);
-3. `~/.config/auditor/.env` (config de usuário, usada ao rodar em qualquer terminal).
+1. variables already exported in the shell (e.g. `export DEEPSEEK_API_KEY=...`);
+2. `.env` in the current directory (in-project development flow);
+3. `~/.config/auditor/.env` (user config, used when running in any terminal).
 
-> A config global é uma **cópia** do `.env` — se trocar chave/provedor, edite
-> `~/.config/auditor/.env` (ou copie o `.env` novamente).
+> The global config is a **copy** of `.env` — if you change the key/provider, edit
+> `~/.config/auditor/.env` (or copy `.env` again).
 
-Variáveis disponíveis (todas opcionais exceto a chave):
+Available variables (all optional except the key):
 
-| Variável | Padrão | Descrição |
+| Variable | Default | Description |
 | --- | --- | --- |
-| `AUDITOR_PROVIDER` | `anthropic` | Provedor de LLM (anthropic, openai, google_genai, groq, ollama, …). |
-| `<PROVIDER>_API_KEY` | — | Credencial do provedor escolhido (ex.: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). |
-| `AUDITOR_MODEL` | `claude-sonnet-4-5` | Modelo usado (depende do provedor). |
-| `AUDITOR_BASE_URL` | — | Endpoint customizado (Ollama, gateways compatíveis com OpenAI). |
-| `AUDITOR_TEMPERATURE` | `0` | Temperatura de geração. |
-| `AUDITOR_MAX_TOKENS` | `8000` | Máx. tokens de saída por chamada. |
-| `AUDITOR_MAX_FILE_BYTES` | `200000` | Máx. bytes lidos por arquivo. |
-| `AUDITOR_MAX_FILES` | `5000` | Máx. arquivos no inventário. |
-| `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Máx. resultados por busca. |
-| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `25` | Máx. passos de raciocínio por investigador. |
-| `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Diretório de saída dos relatórios. |
+| `AUDITOR_PROVIDER` | `anthropic` | LLM provider (anthropic, openai, google_genai, groq, ollama, …). |
+| `<PROVIDER>_API_KEY` | — | Credential for the chosen provider (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). |
+| `AUDITOR_MODEL` | `claude-sonnet-4-5` | Model used (depends on the provider). |
+| `AUDITOR_BASE_URL` | — | Custom endpoint (Ollama, OpenAI-compatible gateways). |
+| `AUDITOR_TEMPERATURE` | `0` | Generation temperature. |
+| `AUDITOR_MAX_TOKENS` | `8000` | Max. output tokens per call. |
+| `AUDITOR_MAX_FILE_BYTES` | `200000` | Max. bytes read per file. |
+| `AUDITOR_MAX_FILES` | `5000` | Max. files in the inventory. |
+| `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Max. results per search. |
+| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `25` | Max. reasoning steps per investigator. |
+| `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
 
-## 3. Executando uma auditoria
+## 3. Running an audit
 
-### Modo interativo (recomendado)
+### Interactive mode (recommended)
 
 ```bash
-auditor audit /caminho/do/projeto --goal "Revisão pré-produção, foco em segurança e testes"
+auditor audit /path/to/project --goal "Pre-production review, security and testing focus"
 ```
 
-Fluxo no terminal:
-1. O agent detecta a stack e mostra o progresso.
-2. Faz perguntas de esclarecimento — responda ou pressione Enter para pular.
-3. Executa os investigadores por dimensão (progresso ao vivo).
-4. Consolida, pontua e grava os relatórios.
-5. Exibe o resumo e os caminhos dos arquivos gerados.
+Terminal flow:
+1. The agent detects the stack and shows progress.
+2. It asks clarification questions — answer them or press Enter to skip.
+3. It runs the investigators per dimension (live progress).
+4. It consolidates, scores, and writes the reports.
+5. It displays the summary and the paths of the generated files.
 
-### Modo não interativo (CI/automação)
+### Non-interactive mode (CI/automation)
 
 ```bash
-auditor audit /caminho/do/projeto --no-questions
+auditor audit /path/to/project --no-questions
 ```
 
-### Escolhendo o provedor de LLM
+### Choosing the LLM provider
 
-Instale o pacote do provedor e selecione-o por env ou flag:
+Install the provider package and select it via env or flag:
 
 ```bash
-pip install -e ".[openai]"          # ou .[google] / .[groq] / .[deepseek] / .[ollama] / .[all-providers]
+pip install -e ".[openai]"          # or .[google] / .[groq] / .[deepseek] / .[ollama] / .[all-providers]
 
 auditor audit /proj --provider openai       --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash
 auditor audit /proj --provider deepseek     --model deepseek-chat
-auditor audit /proj --provider ollama       --model qwen2.5-coder:14b   # local, sem chave
+auditor audit /proj --provider ollama       --model qwen2.5-coder:14b   # local, no key
 
-auditor providers                   # lista provedores, pacotes e credenciais
+auditor providers                   # list providers, packages and credentials
 ```
 
-As flags `--provider`/`--model` sobrescrevem o `.env` apenas naquela execução.
-Provedores como **Ollama** (local) e **Bedrock**/**Vertex AI** não usam
-`*_API_KEY` — dependem, respectivamente, do serviço local e das credenciais da
-nuvem (AWS/gcloud).
+The `--provider`/`--model` flags override `.env` for that run only.
+Providers such as **Ollama** (local) and **Bedrock**/**Vertex AI** do not use
+`*_API_KEY` — they depend, respectively, on the local service and on cloud
+credentials (AWS/gcloud).
 
-> **Compatibilidade:** o agent usa saída estruturada e tool-calling. Prefira
-> modelos com bom suporte a *function calling* (a maioria dos modelos recentes
-> de Anthropic/OpenAI/Google, e modelos locais como `qwen2.5-coder`).
+> **Compatibility:** the agent uses structured output and tool-calling. Prefer
+> models with good *function calling* support (most recent Anthropic/OpenAI/Google
+> models, and local models such as `qwen2.5-coder`).
 
-### Saída
+### Output
 
 ```
 audit-reports/
-├── auditoria-20260701-143022.md      # versionável, para o repositório
-└── auditoria-20260701-143022.html    # auto-contido, para compartilhar
+├── auditoria-20260701-143022.md      # versionable, for the repository
+└── auditoria-20260701-143022.html    # self-contained, to share
 ```
 
-## 4. Interpretando o relatório
+## 4. Interpreting the report
 
-- **Pontuação de saúde (0–100):** heurística baseada nas severidades. ≥75 bom,
-  50–74 atenção, <50 crítico.
-- **Severidades:** `critical` > `high` > `medium` > `low` > `info`.
-- **Confiança:** estimativa do agent (0–100%) sobre o achado. Achados de baixa
-  confiança merecem verificação humana.
-- **Evidência:** trecho real inspecionado pelo agent — sempre confira o arquivo/linha.
+- **Health score (0–100):** heuristic based on the severities. ≥75 good,
+  50–74 caution, <50 critical.
+- **Severities:** `critical` > `high` > `medium` > `low` > `info`.
+- **Confidence:** the agent's estimate (0–100%) about the finding. Low-confidence
+  findings warrant human verification.
+- **Evidence:** the actual snippet inspected by the agent — always check the file/line.
 
-> O relatório é um **apoio à decisão**, não um veredito. Revise achados críticos manualmente.
+> The report is a **decision aid**, not a verdict. Review critical findings manually.
 
-## 5. Uso programático
+## 5. Programmatic use
 
 ```python
 from auditor.graph import build_graph
 from langgraph.types import Command
 
 graph = build_graph()
-config = {"configurable": {"thread_id": "minha-auditoria"}}
+config = {"configurable": {"thread_id": "my-audit"}}
 
 state = {"project_path": "/proj", "user_goal": "", "user_context": {},
          "findings": [], "dimension_summaries": []}
 
-# roda até o interrupt de esclarecimento
+# run until the clarification interrupt
 result = graph.invoke(state, config)
 if "__interrupt__" in result:
-    perguntas = result["__interrupt__"][0].value["questions"]
-    respostas = {q["question"]: "produção" for q in perguntas}
-    result = graph.invoke(Command(resume=respostas), config)
+    questions = result["__interrupt__"][0].value["questions"]
+    answers = {q["question"]: "production" for q in questions}
+    result = graph.invoke(Command(resume=answers), config)
 
 final = graph.get_state(config).values
 print(final["health_score"], final["report_html_path"])
 ```
 
-## 6. Solução de problemas
+## 6. Troubleshooting
 
-| Sintoma | Causa provável | Solução |
+| Symptom | Likely cause | Solution |
 | --- | --- | --- |
-| `auditor: comando não encontrado` | venv não ativado / sem instalação global | Ative o venv ou faça a instalação global (§1). |
-| `... requer a variável de ambiente '<PROVIDER>_API_KEY'` | credencial do provedor ausente | Defina a chave no `.env` (ou `~/.config/auditor/.env`). |
-| `RESOURCE_EXHAUSTED` / `credit balance too low` | cota/billing do provedor | Troque de provedor (`--provider`) ou adicione créditos. |
-| `Recursion limit reached` | Projeto grande demais p/ os passos | Aumente `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
-| Auditoria lenta/cara | Muitas dimensões/arquivos | Reduza `AUDITOR_MAX_FILES` ou use `--goal` para focar. |
-| Poucos achados | Contexto insuficiente | Responda às perguntas de esclarecimento com detalhes. |
+| `auditor: command not found` | venv not activated / no global installation | Activate the venv or perform the global installation (§1). |
+| `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
+| `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
+| `Recursion limit reached` | project too large for the step count | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| Slow/expensive audit | too many dimensions/files | Reduce `AUDITOR_MAX_FILES` or use `--goal` to narrow the focus. |
+| Few findings | insufficient context | Answer the clarification questions in detail. |
 
-## 7. Boas práticas de uso
+## 7. Usage best practices
 
-- Rode a auditoria em uma cópia limpa do repositório (sem artefatos de build).
-- Use `--goal` para direcionar o foco (ex.: "só segurança e dependências").
-- Versione o `.md` no repositório para acompanhar a evolução ao longo do tempo.
-- Trate a pontuação como tendência, não como nota absoluta.
+- Run the audit on a clean copy of the repository (without build artifacts).
+- Use `--goal` to steer the focus (e.g. "only security and dependencies").
+- Version the `.md` in the repository to track its evolution over time.
+- Treat the score as a trend, not as an absolute grade.

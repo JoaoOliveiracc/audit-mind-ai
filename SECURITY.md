@@ -1,47 +1,47 @@
-# Política de Segredos — Audit Mind AI
+# Secrets Policy — Audit Mind AI
 
-Este projeto lida com chaves de API de provedores de LLM. Regras e proteções para
-evitar vazamento de credenciais.
+This project handles LLM provider API keys. Rules and protections to
+prevent credential leakage.
 
-## Regras
+## Rules
 
-1. **Nunca** commite chaves reais. Valores reais vivem **apenas** no `.env`, que é
-   ignorado pelo git (`.gitignore`).
-2. O `.env.example` contém **somente placeholders** (ex.: `sk-ant-...`) e serve de modelo.
-3. O `.env` deve ter permissão restrita ao dono: `chmod 600 .env`.
-4. Se uma chave for exposta, **considere-a comprometida** e rotacione-a no console do provedor.
+1. **Never** commit real keys. Real values live **only** in `.env`, which is
+   ignored by git (`.gitignore`).
+2. `.env.example` contains **only placeholders** (e.g., `sk-ant-...`) and serves as a template.
+3. `.env` must have owner-restricted permissions: `chmod 600 .env`.
+4. If a key is exposed, **consider it compromised** and rotate it in the provider console.
 
-## Proteções automáticas
+## Automatic protections
 
 ### `.gitignore`
-Ignora `.env`, `.env.*` (exceto `.env.example`/`.sample`/`.template`), `*.pem`,
-`*.key` e `secrets.*`.
+Ignores `.env`, `.env.*` (except `.env.example`/`.sample`/`.template`), `*.pem`,
+`*.key` and `secrets.*`.
 
-### Hook de pre-commit (`.githooks/pre-commit`)
-Bloqueia commits que:
-- adicionem arquivos `.env` reais; ou
-- contenham segredos com formato de chave real (Anthropic, OpenAI, Google, Groq,
-  Slack, chaves privadas PEM) em **qualquer** arquivo versionado — inclusive o `.env.example`.
+### Pre-commit hook (`.githooks/pre-commit`)
+Blocks commits that:
+- add real `.env` files; or
+- contain secrets in real-key format (Anthropic, OpenAI, Google, Groq,
+  Slack, PEM private keys) in **any** versioned file — including `.env.example`.
 
-**Ative uma vez por clone** (o `core.hooksPath` é configuração local, não versionada):
+**Enable it once per clone** (`core.hooksPath` is local, unversioned configuration):
 
 ```bash
-make hooks           # ou:  git config core.hooksPath .githooks
+make hooks           # or:  git config core.hooksPath .githooks
 ```
 
-Para pular intencionalmente (desaconselhado): `git commit --no-verify`.
+To intentionally skip (not recommended): `git commit --no-verify`.
 
-## Se uma chave vazou para o histórico do git
+## If a key leaked into git history
 
-1. Rotacione/revogue a chave imediatamente no provedor.
-2. Remova do histórico:
-   - commit único não enviado → `git commit --amend`;
-   - múltiplos commits → `git filter-repo --replace-text` ou BFG.
-3. Force-push apenas se necessário e com ciência da equipe.
+1. Rotate/revoke the key immediately at the provider.
+2. Remove it from history:
+   - single unpushed commit → `git commit --amend`;
+   - multiple commits → `git filter-repo --replace-text` or BFG.
+3. Force-push only if necessary and with the team's awareness.
 
-## Rotação de chaves
+## Key rotation
 
-| Provedor | Onde rotacionar |
+| Provider | Where to rotate |
 | --- | --- |
 | Anthropic | console.anthropic.com → API Keys |
 | Google (Gemini) | Google AI Studio → API Keys |

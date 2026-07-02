@@ -18,7 +18,7 @@ run:
 	. .venv/bin/activate && auditor audit "$(PROJ)" $(if $(GOAL),--goal "$(GOAL)",)
 
 api:
-	@# Sobe a API FastAPI em http://127.0.0.1:8020 (docs em /docs)
+	@# Sobe a API FastAPI em http://127.0.0.1:8010 (docs em /docs)
 	. .venv/bin/activate && auditor serve --reload
 
 web-install:
