@@ -1,159 +1,159 @@
 # Audit Mind AI 🕵️
 
-Agent de **auditoria de projetos de desenvolvimento**, agnóstico de stack, construído com **LangGraph + LangChain** e **multi-provider de LLM** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama local, Bedrock…).
+A **stack-agnostic development-project auditing agent**, built with **LangGraph + LangChain** and a **multi-provider LLM layer** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, local Ollama, Bedrock…).
 
-O agent descobre a stack do projeto, conversa com você para esclarecer o escopo, executa investigadores especializados por dimensão (segurança, qualidade, arquitetura, testes, dependências, etc.) e emite um **relatório completo em Markdown e HTML**.
+The agent discovers the project's stack, talks to you to clarify scope, runs specialized per-dimension investigators (security, quality, architecture, testing, dependencies, etc.) and produces a **complete report in Markdown and HTML**.
 
 ---
 
-## ✨ Características
+## ✨ Features
 
-- **Agnóstico de stack** — detecta automaticamente linguagens, frameworks e gerenciadores de pacote (Python, Node, Go, Rust, Java, PHP, Ruby, .NET, e mais).
-- **Multi-provider de LLM** — troca de provedor por variável de ambiente ou flag de CLI (`--provider`), via `init_chat_model`. Suporta Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama (local), Bedrock, entre outros.
-- **Human-in-the-loop** — o agent faz perguntas de esclarecimento antes de auditar, usando `interrupt` do LangGraph.
-- **Investigadores ReAct por dimensão** — cada dimensão é auditada por um sub-agent que explora o código com ferramentas (ler arquivo, listar diretório, buscar padrões).
-- **Saída estruturada** — achados validados por Pydantic (severidade, evidência, recomendação, confiança).
-- **Relatório profissional** — Markdown versionável + HTML auto-contido e estilizado, com pontuação de saúde 0–100.
-- **Seguro por design** — ferramentas são **read-only** e escopadas à raiz do projeto (proteção contra path traversal). O agent audita, nunca altera.
+- **Stack-agnostic** — automatically detects languages, frameworks and package managers (Python, Node, Go, Rust, Java, PHP, Ruby, .NET, and more).
+- **Multi-provider LLM** — switch provider via environment variable or CLI flag (`--provider`), through `init_chat_model`. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama (local), Bedrock, and others.
+- **Human-in-the-loop** — the agent asks clarifying questions before auditing, using LangGraph's `interrupt`.
+- **Per-dimension ReAct investigators** — each dimension is audited by a sub-agent that explores the code with tools (read file, list directory, search patterns).
+- **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
+- **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
+- **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies.
 
-## 🏗️ Arquitetura em uma imagem
+## 🏗️ Architecture at a glance
 
 ```
 START → discovery → plan_questions → clarify ─(interrupt)→ planning
-      → audit(⇉ investigadores ReAct por dimensão) → synthesis → report → END
+      → audit(⇉ per-dimension ReAct investigators) → synthesis → report → END
 ```
 
-Detalhes em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md).
+Details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md).
 
-## 🚀 Início rápido
+## 🚀 Quick start
 
 ```bash
-# 1. Ambiente
+# 1. Environment
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-make hooks          # ativa o hook de pre-commit de segurança (bloqueia segredos)
+make hooks          # enable the security pre-commit hook (blocks secrets)
 
-# 2. Credenciais
+# 2. Credentials
 cp .env.example .env
-# edite .env: defina AUDITOR_PROVIDER e a chave do provedor (ex.: DEEPSEEK_API_KEY, ANTHROPIC_API_KEY)
+# edit .env: set AUDITOR_PROVIDER and the provider's key (e.g. DEEPSEEK_API_KEY, ANTHROPIC_API_KEY)
 
-# 3. Auditar um projeto
-auditor audit /caminho/do/projeto --goal "Preparando para produção, foco em segurança"
+# 3. Audit a project
+auditor audit /path/to/project --goal "Preparing for production, security focus"
 ```
 
-O agent fará algumas perguntas no terminal, executará a auditoria e gravará os
-relatórios em `./audit-reports/` (configurável via `AUDITOR_OUTPUT_DIR`).
+The agent will ask a few questions in the terminal, run the audit and write the
+reports to `./audit-reports/` (configurable via `AUDITOR_OUTPUT_DIR`).
 
-### Modo não interativo (CI/pipeline)
+### Non-interactive mode (CI/pipeline)
 
 ```bash
-auditor audit /caminho/do/projeto --no-questions
+auditor audit /path/to/project --no-questions
 ```
 
-### Rodar em qualquer terminal (instalação global)
+### Run from any terminal (global installation)
 
-Para usar `auditor` fora do venv, a partir de qualquer diretório:
+To use `auditor` outside the venv, from any directory:
 
 ```bash
-# 1. Symlink do binário para um diretório do PATH (~/.local/bin)
+# 1. Symlink the binary into a directory on your PATH (~/.local/bin)
 ln -sf "$(pwd)/.venv/bin/auditor" ~/.local/bin/auditor
 
-# 2. Config global, lida de qualquer lugar
+# 2. Global config, read from anywhere
 mkdir -p ~/.config/auditor && cp .env ~/.config/auditor/.env && chmod 600 ~/.config/auditor/.env
 ```
 
-A configuração é carregada nesta ordem (**a primeira fonte vence**):
-1. variáveis já exportadas no shell;
-2. `.env` do diretório atual (fluxo de desenvolvimento);
-3. `~/.config/auditor/.env` (config de usuário, para uso global).
+Configuration is loaded in this order (**first source wins**):
+1. variables already exported in the shell;
+2. `.env` in the current directory (development workflow);
+3. `~/.config/auditor/.env` (user config, for global use).
 
-> A config global é uma **cópia** do `.env` — ao trocar chave/provedor, atualize `~/.config/auditor/.env`.
+> The global config is a **copy** of `.env` — when you change key/provider, update `~/.config/auditor/.env`.
 
-## 🔌 Provedores de LLM
+## 🔌 LLM providers
 
-O provedor é configurável via `AUDITOR_PROVIDER` (no `.env`) ou pela flag `--provider`.
-Cada provedor exige seu pacote de integração e sua credencial:
+The provider is configurable via `AUDITOR_PROVIDER` (in `.env`) or the `--provider` flag.
+Each provider requires its integration package and its credential:
 
 ```bash
-# instale o(s) provedor(es) desejado(s)
-pip install -e ".[openai]"        # ou .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
+# install the desired provider(s)
+pip install -e ".[openai]"        # or .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
 
-# use por flag (sobrescreve o .env)
-auditor audit /proj --provider openai      --model gpt-4o
+# select via flag (overrides .env)
+auditor audit /proj --provider openai       --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash
-auditor audit /proj --provider groq        --model llama-3.3-70b-versatile
-auditor audit /proj --provider deepseek    --model deepseek-chat
-auditor audit /proj --provider ollama      --model qwen2.5-coder:14b   # 100% local
+auditor audit /proj --provider groq         --model llama-3.3-70b-versatile
+auditor audit /proj --provider deepseek     --model deepseek-chat
+auditor audit /proj --provider ollama       --model qwen2.5-coder:14b   # 100% local
 
-auditor providers   # lista todos os provedores, pacotes e credenciais
+auditor providers   # list all providers, packages and credentials
 ```
 
-> **Ollama (local):** ideal para auditar código sensível sem enviar dados à nuvem.
-> Defina `AUDITOR_BASE_URL=http://localhost:11434` se necessário.
+> **Ollama (local):** ideal for auditing sensitive code without sending data to the cloud.
+> Set `AUDITOR_BASE_URL=http://localhost:11434` if needed.
 
-## 📋 Comandos
+## 📋 Commands
 
-| Comando | Descrição |
+| Command | Description |
 | --- | --- |
-| `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Executa a auditoria e emite o relatório. |
-| `auditor serve [--host H] [--port N] [--reload]` | Sobe a API FastAPI (para o frontend web). |
-| `auditor providers` | Lista os provedores de LLM suportados. |
-| `auditor version` | Mostra a versão. |
+| `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Run the audit and emit the report. |
+| `auditor serve [--host H] [--port N] [--reload]` | Start the FastAPI backend (for the web frontend). |
+| `auditor providers` | List supported LLM providers. |
+| `auditor version` | Show the version. |
 
-### API web (backend)
+### Web API (backend)
 
 ```bash
 pip install -e ".[api]"
-auditor serve            # http://127.0.0.1:8000 — docs interativas em /docs
+auditor serve            # http://127.0.0.1:8010 — interactive docs at /docs
 ```
 
-Endpoints: `POST /audits` (inicia), `GET /audits/{id}/stream` (SSE de progresso e
-esclarecimentos), `POST /audits/{id}/answers` (human-in-the-loop), `GET /audits/{id}/findings`
-(JSON), `GET /audits/{id}/report?format=html|md`. Estado persistido via `SqliteSaver`.
-Design completo em [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
+Endpoints: `POST /audits` (start), `GET /audits/{id}/stream` (SSE for progress and
+clarifications), `POST /audits/{id}/answers` (human-in-the-loop), `GET /audits/{id}/findings`
+(JSON), `GET /audits/{id}/report?format=html|md`. State persisted via `SqliteSaver`.
+Full design in [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
 
-### Interface web (frontend React/Next.js)
+### Web interface (React/Next.js frontend)
 
-Frontend em `web/` (Next.js + Tailwind) com 3 telas: nova auditoria, execução ao
-vivo (progresso + esclarecimentos via SSE) e dashboard do relatório (achados por
-severidade, filtros, export).
+Frontend in `web/` (Next.js + Tailwind) with 3 screens: new audit, live run
+(progress + clarifications over SSE) and the report dashboard (findings by
+severity, filters, export).
 
 ```bash
 # 1. Backend (terminal A)
-auditor serve                       # http://127.0.0.1:8000
+auditor serve                        # http://127.0.0.1:8010
 
 # 2. Frontend (terminal B)
 cd web && npm install && npm run dev # http://localhost:3020
 ```
 
-Ou tudo junto: `make dev` (sobe API + frontend). Configure a URL da API em
-`web/.env.local` (`NEXT_PUBLIC_API_URL`, padrão `http://127.0.0.1:8000`).
+Or all at once: `make dev` (starts API + frontend). Set the API URL in
+`web/.env.local` (`NEXT_PUBLIC_API_URL`, default `http://127.0.0.1:8010`).
 
-> As portas padrão são **8000** (API) e **3000** (web). Se já houver serviços
-> nelas, ajuste `auditor serve --port` e `NEXT_PUBLIC_API_URL`/porta do Next.
+> Default ports are **8010** (API) and **3020** (web). If other services already
+> use them, adjust `auditor serve --port` and `NEXT_PUBLIC_API_URL` / the Next port.
 
-## 🧪 Testes
+## 🧪 Tests
 
 ```bash
-pytest -q          # testes de fumaça (offline, sem LLM)
+pytest -q          # smoke tests (offline, no LLM)
 ```
 
-## 📚 Documentação
+## 📚 Documentation
 
-- [`docs/SPEC.md`](docs/SPEC.md) — especificação funcional e requisitos.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitetura, grafo e estado.
-- [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md) — design do agent e decisões (best practices LangChain).
-- [`docs/USAGE.md`](docs/USAGE.md) — guia de uso, configuração e extensão.
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — evolução planejada.
-- [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md) — spec da interface web (React/Next + FastAPI).
-- [`SECURITY.md`](SECURITY.md) — política de segredos e proteções (hook de pre-commit).
+- [`docs/SPEC.md`](docs/SPEC.md) — functional specification and requirements.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, graph and state.
+- [`docs/AGENT_DESIGN.md`](docs/AGENT_DESIGN.md) — agent design and decisions (LangChain best practices).
+- [`docs/USAGE.md`](docs/USAGE.md) — usage, configuration and extension guide.
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — planned evolution.
+- [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md) — web interface spec (React/Next + FastAPI).
+- [`SECURITY.md`](SECURITY.md) — secrets policy and protections (pre-commit hook).
 
-## ⚙️ Configuração
+## ⚙️ Configuration
 
-Todas as opções vêm de variáveis de ambiente (ver [`.env.example`](.env.example)):
+All options come from environment variables (see [`.env.example`](.env.example)):
 `ANTHROPIC_API_KEY`, `AUDITOR_MODEL`, `AUDITOR_TEMPERATURE`, `AUDITOR_MAX_FILES`,
-`AUDITOR_MAX_INVESTIGATOR_STEPS`, `AUDITOR_OUTPUT_DIR`, entre outras.
+`AUDITOR_MAX_INVESTIGATOR_STEPS`, `AUDITOR_OUTPUT_DIR`, among others.
 
-## 📄 Licença
+## 📄 License
 
 MIT.
