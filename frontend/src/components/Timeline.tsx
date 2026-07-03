@@ -15,8 +15,10 @@ const STEPS = [
   { key: 'clarify', label: '02 · Esclarecimentos', nodes: ['plan_questions', 'clarify'] },
   { key: 'planning', label: '03 · Plano', nodes: ['planning'] },
   { key: 'audit', label: '04 · Investigação', nodes: ['audit'] },
-  { key: 'synthesis', label: '05 · Consolidação', nodes: ['synthesis'] },
-  { key: 'report', label: '06 · Relatório', nodes: ['report'] },
+  { key: 'verify', label: '05 · Verificação de evidência', nodes: ['verify'] },
+  { key: 'adversarial', label: '06 · Contraprova adversarial', nodes: ['adversarial'] },
+  { key: 'synthesis', label: '07 · Consolidação', nodes: ['synthesis'] },
+  { key: 'report', label: '08 · Relatório', nodes: ['report'] },
 ] as const
 
 type StepStatus = 'pending' | 'active' | 'done'
@@ -156,6 +158,54 @@ export default function Timeline({ state, onClarifySubmit }: Props) {
                   </ul>
                 ) : (
                   <p className="text-sm text-[color:var(--dim)]">Preparando investigadores…</p>
+                )}
+              </Entry>
+            )
+          case 'verify':
+            return (
+              <Entry key={step.key} label={step.label} status={status}>
+                {state.verification ? (
+                  <ul className="space-y-1 text-sm">
+                    <li>
+                      <span className="font-mono text-emerald-400">✓</span>{' '}
+                      {state.verification.verified} com evidência confirmada
+                    </li>
+                    <li className="text-[color:var(--dim)]">
+                      {state.verification.unverified} sem evidência (confiança rebaixada)
+                    </li>
+                    <li className="text-sev-critical">
+                      {state.verification.rejected} descartados (alucinação)
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[color:var(--dim)]">
+                    {status === 'done' ? 'Concluída.' : 'Conferindo evidências no disco…'}
+                  </p>
+                )}
+              </Entry>
+            )
+          case 'adversarial':
+            return (
+              <Entry key={step.key} label={step.label} status={status}>
+                {state.adversarial ? (
+                  <ul className="space-y-1 text-sm">
+                    <li>
+                      <span className="font-mono text-emerald-400">✓</span>{' '}
+                      {state.adversarial.confirmed} confirmados pelo juiz
+                    </li>
+                    <li className="text-[color:var(--dim)]">
+                      {state.adversarial.uncertain} incertos · de {state.adversarial.judged} julgados
+                    </li>
+                    <li className="text-sev-critical">
+                      {state.adversarial.refuted} refutados (falso positivo)
+                    </li>
+                  </ul>
+                ) : (
+                  <p className="text-sm text-[color:var(--dim)]">
+                    {status === 'done'
+                      ? 'Sem contraprova adversarial (desativada — AUDITOR_ADVERSARIAL_VERIFY).'
+                      : 'Aguardando julgamento cético…'}
+                  </p>
                 )}
               </Entry>
             )

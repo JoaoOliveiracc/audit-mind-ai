@@ -1,24 +1,21 @@
 import { useState, type FormEvent } from 'react'
 
-import type { ConfigResponse, CreateAuditRequest, ProviderInfo } from '../types'
-import FolderPicker from './FolderPicker'
+import type { CreateAuditRequest, ProviderInfo } from '../types'
 
 interface Props {
-  config: ConfigResponse | null
   providers: ProviderInfo[]
   busy: boolean
   onStart: (req: CreateAuditRequest) => void
 }
 
 /** Formulário inicial: caminho do projeto, objetivo e provedor/modelo. */
-export default function StartForm({ config, providers, busy, onStart }: Props) {
+export default function StartForm({ providers, busy, onStart }: Props) {
   const [path, setPath] = useState('')
   const [goal, setGoal] = useState('')
   const [provider, setProvider] = useState('')
   const [model, setModel] = useState('')
   const [skipQuestions, setSkipQuestions] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Caminho relativo resolveria contra o cwd do processo do backend — algo que
   // o navegador não tem como ver. Exigimos absoluto pra nunca ser ambíguo.
@@ -44,31 +41,16 @@ export default function StartForm({ config, providers, busy, onStart }: Props) {
         <label htmlFor="path" className="eyebrow mb-1 block">
           Caminho do projeto
         </label>
-        <div className="flex gap-2">
-          <input
-            id="path"
-            className={`field font-mono ${pathError ? '!border-sev-critical' : ''}`}
-            placeholder="/caminho/do/projeto"
-            value={path}
-            onChange={(e) => setPath(e.target.value)}
-            aria-invalid={!!pathError}
-            aria-describedby={pathError ? 'path-error' : 'path-hint'}
-            autoFocus
-          />
-          <button type="button" className="btn shrink-0" onClick={() => setPickerOpen(true)}>
-            Procurar…
-          </button>
-        </div>
-        {pickerOpen && (
-          <FolderPicker
-            initialPath={trimmedPath}
-            onClose={() => setPickerOpen(false)}
-            onSelect={(p) => {
-              setPath(p)
-              setPickerOpen(false)
-            }}
-          />
-        )}
+        <input
+          id="path"
+          className={`field font-mono ${pathError ? '!border-sev-critical' : ''}`}
+          placeholder="/caminho/do/projeto"
+          value={path}
+          onChange={(e) => setPath(e.target.value)}
+          aria-invalid={!!pathError}
+          aria-describedby={pathError ? 'path-error' : 'path-hint'}
+          autoFocus
+        />
         {pathError ? (
           <p id="path-error" className="mt-1 text-xs text-sev-critical">
             {pathError}
@@ -114,7 +96,7 @@ export default function StartForm({ config, providers, busy, onStart }: Props) {
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
             >
-              <option value="">padrão ({config?.provider ?? '…'})</option>
+              <option value="">padrão do servidor (.env)</option>
               {providers.map((p) => (
                 <option key={p.provider} value={p.provider}>
                   {p.provider}
@@ -129,7 +111,7 @@ export default function StartForm({ config, providers, busy, onStart }: Props) {
             <input
               id="model"
               className="field font-mono"
-              placeholder={config?.model ?? 'padrão do .env'}
+              placeholder="padrão do .env"
               value={model}
               onChange={(e) => setModel(e.target.value)}
             />
@@ -146,9 +128,7 @@ export default function StartForm({ config, providers, busy, onStart }: Props) {
       )}
 
       <div className="flex items-center justify-between">
-        <span className="eyebrow">
-          {config ? `${config.provider} · ${config.model}` : 'carregando config…'}
-        </span>
+        <span className="eyebrow">provedor/modelo do .env · ajuste em opções avançadas</span>
         <button type="submit" className="btn btn-primary" disabled={busy || !trimmedPath || !!pathError}>
           Iniciar auditoria
         </button>
