@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -15,7 +16,14 @@ from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
 from ..llm import LLMConfigError, get_llm, reset_llm_cache
 from .deps import get_graph, get_store, registry
 from .runner import AuditRunner
-from .schemas import AnswersRequest, AuditSummary, CreateAuditRequest, ProviderInfo
+from .schemas import (
+    AnswersRequest,
+    AuditSummary,
+    BrowseEntry,
+    BrowseResponse,
+    CreateAuditRequest,
+    ProviderInfo,
+)
 
 router = APIRouter()
 
@@ -28,6 +36,36 @@ def list_providers() -> list[ProviderInfo]:
                      credential_env=PROVIDER_ENV_VAR.get(p))
         for p in PROVIDER_PACKAGE
     ]
+
+
+@router.get("/fs/browse", response_model=BrowseResponse)
+def browse_fs(path: Optional[str] = None) -> BrowseResponse:
+    """Lista subpastas de um diretório do host — alimenta o picker de projeto.
+
+    Só lê nomes de diretórios (sem conteúdo de arquivo); a auditoria já exige
+    o mesmo acesso de leitura ao filesystem, então isso não abre superfície
+    nova — só torna o caminho navegável em vez de digitado à mão.
+    """
+    root = Path(path).expanduser().resolve() if path else Path.home()
+    if not root.is_dir():
+        raise HTTPException(400, f"Diretório não encontrado: {root}")
+
+    entries: list[BrowseEntry] = []
+    try:
+        children = sorted(root.iterdir(), key=lambda p: p.name.lower())
+    except PermissionError:
+        children = []
+    for child in children:
+        if child.name.startswith("."):
+            continue
+        try:
+            if child.is_dir():
+                entries.append(BrowseEntry(name=child.name, path=str(child)))
+        except PermissionError:
+            continue
+
+    parent = str(root.parent) if root.parent != root else None
+    return BrowseResponse(path=str(root), parent=parent, entries=entries)
 
 
 @router.post("/audits", response_model=AuditSummary, status_code=201)

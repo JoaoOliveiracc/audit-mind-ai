@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ink: #101623;
+    --surface: #18202f;
+    --line: #2a3548;
+    --text: #e8edf6;
+    --dim: #8b97ab;
+    --stamp: #e8a13c;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--ink);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(232, 161, 60, 0.3);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--stamp);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Voz estrutural: mono, caixa alta, espaçada — fases, eyebrows, protocolos. */
+  .eyebrow {
+    @apply font-mono text-[11px] uppercase tracking-[0.18em] text-[color:var(--dim)];
+  }
+
+  .card {
+    @apply rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] p-4;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-md border border-[color:var(--line)]
+      bg-[color:var(--surface)] px-3 py-1.5 text-sm text-[color:var(--text)]
+      transition-colors hover:border-[color:var(--stamp)] hover:text-[color:var(--stamp)]
+      disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply border-[color:var(--stamp)] bg-[color:var(--stamp)] font-medium text-[#1a1205]
+      hover:bg-[#f0b055] hover:text-[#1a1205];
+  }
+
+  .field {
+    @apply w-full rounded-md border border-[color:var(--line)] bg-[color:var(--ink)]
+      px-3 py-2 text-sm text-[color:var(--text)] placeholder-[color:var(--dim)]
+      focus:border-[color:var(--stamp)] focus:outline-none;
+  }
+
+  /* Assinatura: carimbo do score — anel rotacionado, tinta da faixa. */
+  .stamp {
+    @apply flex h-28 w-28 -rotate-6 flex-col items-center justify-center rounded-full
+      border-4 border-double select-none;
+    box-shadow: inset 0 0 0 2px currentColor;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

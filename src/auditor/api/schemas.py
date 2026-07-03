@@ -43,3 +43,18 @@ class ProviderInfo(BaseModel):
     provider: str
     package: str
     credential_env: Optional[str] = None
+
+
+class BrowseEntry(BaseModel):
+    """Uma subpasta listável no picker de diretório."""
+
+    name: str
+    path: str
+
+
+class BrowseResponse(BaseModel):
+    """Listagem de um diretório do host, para o picker de caminho do projeto."""
+
+    path: str
+    parent: Optional[str] = None
+    entries: list[BrowseEntry]
