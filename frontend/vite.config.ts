@@ -10,7 +10,7 @@ export default defineConfig({
     port: 5173,
     // A API não usa prefixo /api — proxy por rota (inclui o SSE de /audits).
     proxy: Object.fromEntries(
-      ['/audits', '/providers', '/health'].map((route) => [
+      ['/audits', '/providers', '/health', '/fs'].map((route) => [
         route,
         { target: 'http://127.0.0.1:8000', changeOrigin: true },
       ]),

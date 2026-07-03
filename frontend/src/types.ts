@@ -145,3 +145,14 @@ export interface ProviderInfo {
   package: string
   credential_env: string | null
 }
+
+export interface BrowseEntry {
+  name: string
+  path: string
+}
+
+export interface BrowseResponse {
+  path: string
+  parent: string | null
+  entries: BrowseEntry[]
+}
