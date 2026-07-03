@@ -24,6 +24,14 @@ export async function getProviders(): Promise<ProviderInfo[]> {
   return jsonOrThrow(await fetch('/providers'))
 }
 
+export async function listAudits(): Promise<AuditSummary[]> {
+  return jsonOrThrow(await fetch('/audits'))
+}
+
+export async function getAudit(auditId: string): Promise<AuditSummary> {
+  return jsonOrThrow(await fetch(`/audits/${auditId}`))
+}
+
 export async function createAudit(req: CreateAuditRequest): Promise<AuditSummary> {
   return jsonOrThrow(
     await fetch('/audits', {
