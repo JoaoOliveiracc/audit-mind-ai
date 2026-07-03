@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import type { CreateAuditRequest, ProviderInfo } from '../types'
+import FolderPicker from './FolderPicker'
 
 interface Props {
   providers: ProviderInfo[]
@@ -16,6 +17,7 @@ export default function StartForm({ providers, busy, onStart }: Props) {
   const [model, setModel] = useState('')
   const [skipQuestions, setSkipQuestions] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // Caminho relativo resolveria contra o cwd do processo do backend — algo que
   // o navegador não tem como ver. Exigimos absoluto pra nunca ser ambíguo.
@@ -41,16 +43,31 @@ export default function StartForm({ providers, busy, onStart }: Props) {
         <label htmlFor="path" className="eyebrow mb-1 block">
           Caminho do projeto
         </label>
-        <input
-          id="path"
-          className={`field font-mono ${pathError ? '!border-sev-critical' : ''}`}
-          placeholder="/caminho/do/projeto"
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          aria-invalid={!!pathError}
-          aria-describedby={pathError ? 'path-error' : 'path-hint'}
-          autoFocus
-        />
+        <div className="flex gap-2">
+          <input
+            id="path"
+            className={`field font-mono ${pathError ? '!border-sev-critical' : ''}`}
+            placeholder="/caminho/do/projeto"
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            aria-invalid={!!pathError}
+            aria-describedby={pathError ? 'path-error' : 'path-hint'}
+            autoFocus
+          />
+          <button type="button" className="btn shrink-0" onClick={() => setPickerOpen(true)}>
+            Procurar…
+          </button>
+        </div>
+        {pickerOpen && (
+          <FolderPicker
+            initialPath={trimmedPath}
+            onClose={() => setPickerOpen(false)}
+            onSelect={(p) => {
+              setPath(p)
+              setPickerOpen(false)
+            }}
+          />
+        )}
         {pathError ? (
           <p id="path-error" className="mt-1 text-xs text-sev-critical">
             {pathError}
