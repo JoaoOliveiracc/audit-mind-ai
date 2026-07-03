@@ -1,10 +1,12 @@
 import type {
+  AdversarialEvent,
   ClarifyingQuestion,
   CompletedEvent,
   FindingsPayload,
   InvestigatorEvent,
   PhaseEvent,
   StackProfile,
+  VerificationEvent,
 } from '../types'
 
 export interface DimensionProgress {
@@ -25,6 +27,10 @@ export interface AuditUIState {
   stackProfile: StackProfile | null
   dimensions: Record<string, DimensionProgress>
   dimensionOrder: string[]
+  /** Stats ao vivo do nó `verify` (evento `verification`). */
+  verification: VerificationEvent | null
+  /** Stats ao vivo do nó `adversarial` (evento `adversarial`). */
+  adversarial: AdversarialEvent | null
   pendingClarify: ClarifyingQuestion[] | null
   clarifyAnswered: boolean
   completed: CompletedEvent | null
@@ -38,6 +44,8 @@ export const initialState: AuditUIState = {
   stackProfile: null,
   dimensions: {},
   dimensionOrder: [],
+  verification: null,
+  adversarial: null,
   pendingClarify: null,
   clarifyAnswered: false,
   completed: null,
@@ -50,6 +58,8 @@ export type Action =
   | { type: 'PHASE'; event: PhaseEvent }
   | { type: 'SNAPSHOT'; stackProfile: StackProfile }
   | { type: 'INVESTIGATOR'; event: InvestigatorEvent }
+  | { type: 'VERIFICATION'; event: VerificationEvent }
+  | { type: 'ADVERSARIAL'; event: AdversarialEvent }
   | { type: 'CLARIFY'; questions: ClarifyingQuestion[] }
   | { type: 'CLARIFY_SUBMITTED' }
   | { type: 'COMPLETED'; event: CompletedEvent }
@@ -90,6 +100,10 @@ export function auditReducer(state: AuditUIState, action: Action): AuditUIState 
         : [...state.dimensionOrder, e.dimension]
       return { ...state, dimensions, dimensionOrder }
     }
+    case 'VERIFICATION':
+      return { ...state, verification: action.event }
+    case 'ADVERSARIAL':
+      return { ...state, adversarial: action.event }
     case 'CLARIFY':
       return { ...state, status: 'awaiting_clarify', pendingClarify: action.questions }
     case 'CLARIFY_SUBMITTED':

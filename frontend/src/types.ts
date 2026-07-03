@@ -12,6 +12,30 @@ export interface Finding {
   line?: number | null
   evidence?: string | null
   confidence: number
+  // Anexados pelos nós verify/adversarial (backend upstream).
+  verified?: boolean
+  verification_note?: string | null
+  judged?: 'confirmed' | 'uncertain'
+  judge_rationale?: string | null
+}
+
+/** Estatística final da verificação determinística de evidência (nó `verify`). */
+export interface VerificationSummary {
+  enabled?: boolean
+  verified: number
+  unverified: number
+  rejected: number
+  rejected_titles?: string[]
+}
+
+/** Estatística final da verificação adversarial (nó `adversarial`, opcional). */
+export interface AdversarialSummary {
+  enabled?: boolean
+  judged: number
+  confirmed: number
+  refuted: number
+  uncertain: number
+  refuted_titles?: string[]
 }
 
 export interface ClarifyingQuestion {
@@ -58,6 +82,23 @@ export interface ClarificationEvent {
   questions: ClarifyingQuestion[]
 }
 
+/** Evento ao vivo do nó `verify` (checagem determinística de evidência). */
+export interface VerificationEvent {
+  type: 'verification'
+  verified: number
+  unverified: number
+  rejected: number
+}
+
+/** Evento ao vivo do nó `adversarial` (juiz LLM cético). */
+export interface AdversarialEvent {
+  type: 'adversarial'
+  judged: number
+  confirmed: number
+  refuted: number
+  uncertain: number
+}
+
 export interface CompletedEvent {
   health_score: number | null
   counts: Record<string, number>
@@ -95,24 +136,8 @@ export interface FindingsPayload {
   health_score: number | null
   executive_summary: string
   stack_profile: StackProfile
-}
-
-export interface BrowseEntry {
-  name: string
-  path: string
-}
-
-export interface BrowseResponse {
-  path: string
-  parent: string | null
-  entries: BrowseEntry[]
-}
-
-export interface ConfigResponse {
-  provider: string
-  model: string
-  temperature: number
-  output_dir: string
+  verification?: VerificationSummary
+  adversarial?: AdversarialSummary
 }
 
 export interface ProviderInfo {

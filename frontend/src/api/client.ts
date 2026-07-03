@@ -1,7 +1,5 @@
 import type {
   AuditSummary,
-  BrowseResponse,
-  ConfigResponse,
   CreateAuditRequest,
   FindingsPayload,
   ProviderInfo,
@@ -19,10 +17,6 @@ async function jsonOrThrow(res: Response): Promise<any> {
     throw new Error(detail)
   }
   return res.json()
-}
-
-export async function getConfig(): Promise<ConfigResponse> {
-  return jsonOrThrow(await fetch('/config'))
 }
 
 export async function getProviders(): Promise<ProviderInfo[]> {
@@ -58,9 +52,4 @@ export async function getFindings(auditId: string): Promise<FindingsPayload> {
 
 export function reportUrl(auditId: string, format: 'md' | 'html'): string {
   return `/audits/${auditId}/report?format=${format}`
-}
-
-export async function browseFs(path?: string): Promise<BrowseResponse> {
-  const qs = path ? `?path=${encodeURIComponent(path)}` : ''
-  return jsonOrThrow(await fetch(`/fs/browse${qs}`))
 }

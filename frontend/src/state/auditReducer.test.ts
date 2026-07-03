@@ -65,4 +65,27 @@ describe('auditReducer', () => {
     expect(s.status).toBe('error')
     expect(s.error).toBe('boom')
   })
+
+  it('guarda stats ao vivo de verificação e contraprova', () => {
+    let s = auditReducer(initialState, {
+      type: 'VERIFICATION',
+      event: { type: 'verification', verified: 3, unverified: 1, rejected: 2 },
+    })
+    expect(s.verification).toMatchObject({ verified: 3, rejected: 2 })
+    s = auditReducer(s, {
+      type: 'ADVERSARIAL',
+      event: { type: 'adversarial', judged: 5, confirmed: 3, refuted: 1, uncertain: 1 },
+    })
+    expect(s.adversarial).toMatchObject({ confirmed: 3, refuted: 1, judged: 5 })
+  })
+
+  it('START limpa stats de verificação/contraprova de um run anterior', () => {
+    const dirty = auditReducer(initialState, {
+      type: 'VERIFICATION',
+      event: { type: 'verification', verified: 1, unverified: 0, rejected: 0 },
+    })
+    const s = auditReducer(dirty, { type: 'START' })
+    expect(s.verification).toBeNull()
+    expect(s.adversarial).toBeNull()
+  })
 })

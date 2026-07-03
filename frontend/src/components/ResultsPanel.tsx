@@ -41,6 +41,31 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
         </div>
       </div>
 
+      {(results.verification || results.adversarial) && (
+        <div className="card flex flex-wrap gap-x-6 gap-y-1 text-xs">
+          {results.verification && (
+            <span>
+              <span className="eyebrow mr-1.5">Evidência</span>
+              <span className="text-emerald-400">{results.verification.verified} ✓</span>
+              {' · '}
+              {results.verification.unverified} sem evidência
+              {' · '}
+              <span className="text-sev-critical">{results.verification.rejected} descartados</span>
+            </span>
+          )}
+          {results.adversarial?.enabled && (
+            <span>
+              <span className="eyebrow mr-1.5">Contraprova</span>
+              <span className="text-emerald-400">{results.adversarial.confirmed} confirmados</span>
+              {' · '}
+              {results.adversarial.uncertain} incertos
+              {' · '}
+              <span className="text-sev-critical">{results.adversarial.refuted} refutados</span>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <span className="eyebrow mr-1">
           {results.findings.length} achado{results.findings.length === 1 ? '' : 's'}

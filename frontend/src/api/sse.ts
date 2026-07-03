@@ -1,14 +1,18 @@
 import type {
+  AdversarialEvent,
   ClarificationEvent,
   CompletedEvent,
   ErrorEvent,
   InvestigatorEvent,
   PhaseEvent,
+  VerificationEvent,
 } from '../types'
 
 export interface StreamHandlers {
   onPhase: (e: PhaseEvent) => void
   onInvestigator: (e: InvestigatorEvent) => void
+  onVerification: (e: VerificationEvent) => void
+  onAdversarial: (e: AdversarialEvent) => void
   onClarification: (e: ClarificationEvent) => void
   onCompleted: (e: CompletedEvent) => void
   onError: (message: string) => void
@@ -37,6 +41,8 @@ export function connectAuditStream(auditId: string, h: StreamHandlers): AuditStr
 
   on<PhaseEvent>('phase', h.onPhase)
   on<InvestigatorEvent>('investigator', h.onInvestigator)
+  on<VerificationEvent>('verification', h.onVerification)
+  on<AdversarialEvent>('adversarial', h.onAdversarial)
   on<ClarificationEvent>('clarification', h.onClarification)
   on<CompletedEvent>('completed', h.onCompleted)
   on<ErrorEvent>('error', (e) => h.onError(e.message))

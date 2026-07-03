@@ -1,17 +1,16 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { createAudit, getConfig, getFindings, getProviders, submitAnswers } from './api/client'
+import { createAudit, getFindings, getProviders, submitAnswers } from './api/client'
 import { connectAuditStream, type AuditStream } from './api/sse'
 import ChatDock from './components/ChatDock'
 import ResultsPanel from './components/ResultsPanel'
 import StartForm from './components/StartForm'
 import Timeline from './components/Timeline'
 import { auditReducer, initialState } from './state/auditReducer'
-import type { ConfigResponse, CreateAuditRequest, ProviderInfo } from './types'
+import type { CreateAuditRequest, ProviderInfo } from './types'
 
 export default function App() {
   const [state, dispatch] = useReducer(auditReducer, initialState)
-  const [config, setConfig] = useState<ConfigResponse | null>(null)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [startError, setStartError] = useState<string | null>(null)
   const [auditId, setAuditId] = useState<string | null>(null)
@@ -19,7 +18,6 @@ export default function App() {
   const streamRef = useRef<AuditStream | null>(null)
 
   useEffect(() => {
-    getConfig().then(setConfig).catch(() => setConfig(null))
     getProviders().then(setProviders).catch(() => setProviders([]))
     return () => streamRef.current?.close()
   }, [])
@@ -38,6 +36,8 @@ export default function App() {
         }
       },
       onInvestigator: (e) => dispatch({ type: 'INVESTIGATOR', event: e }),
+      onVerification: (e) => dispatch({ type: 'VERIFICATION', event: e }),
+      onAdversarial: (e) => dispatch({ type: 'ADVERSARIAL', event: e }),
       onClarification: (e) => dispatch({ type: 'CLARIFY', questions: e.questions }),
       onCompleted: (e) => {
         streamRef.current?.close() // evita replay na reconexão automática do EventSource
@@ -110,7 +110,7 @@ export default function App() {
       <main className="flex-1 space-y-6">
         {state.status === 'idle' && (
           <>
-            <StartForm config={config} providers={providers} busy={false} onStart={handleStart} />
+            <StartForm providers={providers} busy={false} onStart={handleStart} />
             {startError && (
               <p className="card text-sm text-sev-critical" role="alert">
                 {startError}
