@@ -1,24 +1,43 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 
-import { createAudit, getFindings, getProviders, submitAnswers } from './api/client'
+import {
+  createAudit,
+  getAudit,
+  getFindings,
+  getProviders,
+  listAudits,
+  submitAnswers,
+} from './api/client'
 import { connectAuditStream, type AuditStream } from './api/sse'
 import ChatDock from './components/ChatDock'
+import History from './components/History'
 import ResultsPanel from './components/ResultsPanel'
 import StartForm from './components/StartForm'
 import Timeline from './components/Timeline'
 import { auditReducer, initialState } from './state/auditReducer'
-import type { CreateAuditRequest, ProviderInfo } from './types'
+import type { AuditSummary, CreateAuditRequest, Finding, ProviderInfo } from './types'
+
+/** Conta achados por severidade (fallback quando o resumo não traz `counts`). */
+function countBySeverity(findings: Finding[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1
+  return counts
+}
 
 export default function App() {
   const [state, dispatch] = useReducer(auditReducer, initialState)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
+  const [history, setHistory] = useState<AuditSummary[]>([])
   const [startError, setStartError] = useState<string | null>(null)
   const [auditId, setAuditId] = useState<string | null>(null)
   const [projectPath, setProjectPath] = useState<string | null>(null)
   const streamRef = useRef<AuditStream | null>(null)
 
+  const refreshHistory = () => listAudits().then(setHistory).catch(() => setHistory([]))
+
   useEffect(() => {
     getProviders().then(setProviders).catch(() => setProviders([]))
+    refreshHistory()
     return () => streamRef.current?.close()
   }, [])
 
@@ -82,6 +101,34 @@ export default function App() {
     setAuditId(null)
     setProjectPath(null)
     dispatch({ type: 'RESET' })
+    refreshHistory()
+  }
+
+  /** Reabre uma auditoria do histórico: completa → carrega achados; em curso → reconecta o stream. */
+  const handleOpenAudit = async (summary: AuditSummary) => {
+    streamRef.current?.close()
+    setStartError(null)
+    // Revalida o status: a lista pode estar defasada (auditoria concluiu desde então).
+    const a = await getAudit(summary.id).catch(() => summary)
+    setAuditId(a.id)
+    setProjectPath(a.project_path)
+    if (a.status === 'completed') {
+      try {
+        const payload = await getFindings(a.id)
+        const counts = a.counts ?? countBySeverity(payload.findings)
+        dispatch({
+          type: 'COMPLETED',
+          event: { health_score: a.health_score ?? payload.health_score ?? 0, counts },
+        })
+        dispatch({ type: 'RESULTS', payload })
+      } catch (err) {
+        setStartError(err instanceof Error ? err.message : String(err))
+      }
+    } else {
+      // running / waiting_input / error: o runner faz replay do log acumulado.
+      dispatch({ type: 'START' })
+      openStream(a.id)
+    }
   }
 
   return (
@@ -112,10 +159,11 @@ export default function App() {
           <>
             <StartForm providers={providers} busy={false} onStart={handleStart} />
             {startError && (
-              <p className="card text-sm text-sev-critical" role="alert">
+              <p className="card break-words text-sm text-sev-critical" role="alert">
                 {startError}
               </p>
             )}
+            <History audits={history} onOpen={handleOpenAudit} />
           </>
         )}
 

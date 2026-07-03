@@ -53,20 +53,27 @@ function DimensionRow({ d }: { d: DimensionProgress }) {
       ? 'text-sev-critical'
       : 'text-[color:var(--stamp)] animate-pulse'
   return (
-    <li className="flex items-baseline gap-2 text-sm">
-      <span className={`font-mono ${tone}`}>{icon}</span>
-      <span className="font-mono">{d.dimension}</span>
-      <span className="eyebrow">
-        {d.index}/{d.total}
-      </span>
-      {d.status === 'done' && (
+    <li className="text-sm">
+      <div className="flex items-baseline gap-2">
+        <span className={`font-mono ${tone}`}>{icon}</span>
+        <span className="font-mono">{d.dimension}</span>
         <span className="eyebrow">
-          {d.findings_count ?? 0} achado{(d.findings_count ?? 0) === 1 ? '' : 's'}
+          {d.index}/{d.total}
         </span>
+        {d.status === 'done' && (
+          <span className="eyebrow">
+            {d.findings_count ?? 0} achado{(d.findings_count ?? 0) === 1 ? '' : 's'}
+          </span>
+        )}
+        {d.status === 'empty' && <span className="eyebrow">sem resultado estruturado</span>}
+        {d.status === 'error' && <span className="eyebrow !text-sev-critical">falhou</span>}
+        {d.status === 'start' && <span className="eyebrow">investigando…</span>}
+      </div>
+      {d.status === 'error' && d.message && (
+        <p className="mt-1 max-w-full whitespace-pre-wrap break-words rounded bg-[color:var(--ink)] p-2 font-mono text-xs leading-relaxed text-sev-critical">
+          {d.message}
+        </p>
       )}
-      {d.status === 'empty' && <span className="eyebrow">sem resultado estruturado</span>}
-      {d.status === 'error' && <span className="eyebrow !text-sev-critical">{d.message}</span>}
-      {d.status === 'start' && <span className="eyebrow">investigando…</span>}
     </li>
   )
 }
@@ -218,7 +225,9 @@ export default function Timeline({ state, onClarifySubmit }: Props) {
           <span aria-hidden className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-sev-critical" />
           <p className="eyebrow mb-1.5 !text-sev-critical">Falha</p>
           <div className="card">
-            <p className="text-sm text-sev-critical">{state.error}</p>
+            <p className="whitespace-pre-wrap break-words text-sm text-sev-critical">
+              {state.error}
+            </p>
           </div>
         </li>
       )}
