@@ -16,7 +16,7 @@ from rich.console import Console
 from ..config import get_settings
 from ..llm import get_llm
 from ..prompts.templates import JUDGE_LENSES, JUDGE_PROMPT, JUDGE_SYSTEM
-from ..state import SEVERITY_WEIGHT, AuditState, Verdict
+from ..state import AuditState, Verdict
 from ..tools.filesystem import _safe_resolve
 
 try:
@@ -117,7 +117,7 @@ def adversarial_node(state: AuditState) -> dict:
     min_rank = _SEVERITY_RANK.get(settings.adversarial_min_severity.lower(), 1)
     votes = max(1, min(int(settings.adversarial_votes), len(JUDGE_LENSES)))
     root = Path(state["project_path"]).expanduser().resolve()
-    llm = get_llm().with_structured_output(Verdict)
+    llm = get_llm(state.get("provider"), state.get("model")).with_structured_output(Verdict)
 
     kept: list[dict] = []
     stats = {"enabled": True, "judged": 0, "confirmed": 0, "refuted": 0,

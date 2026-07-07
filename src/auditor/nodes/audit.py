@@ -63,7 +63,7 @@ def audit_node(state: AuditState) -> dict:
     settings = get_settings()
     root = Path(state["project_path"]).expanduser().resolve()
     tools = make_project_tools(root, settings)
-    llm = get_llm()
+    llm = get_llm(state.get("provider"), state.get("model"))
 
     dimensions = state.get("plan", {}).get("dimensions", [])
     all_findings: list[dict] = []

@@ -176,8 +176,9 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 A credencial de cada provider é lida **diretamente do ambiente pela SDK correspondente**
 (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, …); `auditor.config.PROVIDER_ENV_VAR` mapeia
 provider → variável exigida, e `auditor.llm._validate_credentials` falha cedo com mensagem
-acionável se ela estiver ausente. **Nenhuma chave é hardcoded no código do pacote** — a única
-exceção é o legado `app.py` (ver [§10 G1](#10-gaps-identificados) e [§12](#12-legado-appy)).
+acionável se ela estiver ausente. **Nenhuma chave é hardcoded no código.** O antigo protótipo
+`app.py`, que continha uma, foi **removido** (ver [§12](#12-legado-appy-removido)); resta apenas
+saná-la no histórico do git (ver [§10 G14](#10-gaps-identificados)).
 
 ---
 

@@ -1,9 +1,15 @@
 # Frontend & API Spec — Audit Mind AI
 
-Architecture specification for a web interface (React + Next.js) on top of the
-existing agent, in **local/desktop mode** (single user, no dedicated server).
+Architecture specification for a web interface on top of the existing agent, in
+**local/desktop mode** (single user, no dedicated server).
 
-> Status: **design** (no code yet). This document precedes the implementation.
+> ⚠️ **Superseded in part — implementation note (2026).** This document was written
+> around a **Next.js** frontend. The API layer described here was delivered and is
+> current, but the **frontend was implemented with Vite + React** in `frontend/`
+> (dev server on **:5173**, proxying the API on **:8020**), not Next.js in `web/`.
+> The Next.js-specific sections below (App Router, port 3020, `web/` tree) are the
+> original design and no longer match the code. See `README.md` / `DOCUMENTACAO.md`
+> for the current setup.
 
 ---
 

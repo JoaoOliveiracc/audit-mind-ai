@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -13,7 +12,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from sse_starlette.sse import EventSourceResponse
 
 from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
-from ..llm import LLMConfigError, get_llm, reset_llm_cache
+from ..llm import LLMConfigError, get_llm
 from .deps import get_graph, get_store, registry
 from .runner import AuditRunner
 from .schemas import (
@@ -75,25 +74,24 @@ def create_audit(req: CreateAuditRequest) -> AuditSummary:
     if not root.is_dir():
         raise HTTPException(400, f"Caminho de projeto inválido: {req.project_path}")
 
-    # Override de provedor/modelo (processo-global; para uso local single-user).
-    if req.provider:
-        os.environ["AUDITOR_PROVIDER"] = req.provider
-    if req.model:
-        os.environ["AUDITOR_MODEL"] = req.model
-    if req.provider or req.model:
-        get_settings.cache_clear()
-        reset_llm_cache()
+    # Provedor/modelo efetivos: override do request ou default das settings.
+    # Passados via estado do grafo (sem mutar os.environ global) — auditorias
+    # concorrentes podem usar provedores distintos com segurança.
+    settings = get_settings()
+    provider = req.provider or settings.provider
+    model = req.model or settings.model
 
     try:  # valida credencial/pacote do provedor cedo
-        get_llm()
+        get_llm(provider, model)
     except LLMConfigError as exc:
         raise HTTPException(400, str(exc)) from exc
 
-    settings = get_settings()
     audit_id = uuid.uuid4().hex
     initial = {
         "project_path": str(root.resolve()),
         "user_goal": req.goal or "",
+        "provider": provider,
+        "model": model,
         "skip_questions": not req.interactive,
         "user_context": {},
         "findings": [],
@@ -102,7 +100,7 @@ def create_audit(req: CreateAuditRequest) -> AuditSummary:
     }
 
     store = get_store()
-    store.create(audit_id, str(root.resolve()), req.goal, settings.provider, settings.model)
+    store.create(audit_id, str(root.resolve()), req.goal, provider, model)
 
     runner = AuditRunner(audit_id, get_graph(), store, initial)
     registry[audit_id] = runner

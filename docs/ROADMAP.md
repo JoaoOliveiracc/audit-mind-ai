@@ -25,7 +25,7 @@
 ## v0.4 — Experience and integration
 - [x] API layer (FastAPI) reusing the same graph — **delivered (F1–F3)**: endpoints, SSE, SQLite checkpointer and human-in-the-loop. See [`FRONTEND_SPEC.md`](FRONTEND_SPEC.md).
 - [x] Structured JSON export of findings — **delivered** (`GET /audits/{id}/findings`).
-- [x] Web frontend (React + Next.js) — **MVP delivered (F4)**: new audit, live execution (SSE) and findings dashboard. In `web/`.
+- [x] Web frontend (Vite + React) — **MVP delivered (F4)**: new audit, live execution (SSE) and findings dashboard. In `frontend/` (migrated from the original Next.js `web/`, now removed).
 - [ ] Frontend F5–F6: rich history, robust SSE reconnection, empty/error states, responsive.
 - [ ] GitHub / GitLab action (audit on PR with inline comments).
 - [ ] Comparison between audits (health diff over time).

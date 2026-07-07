@@ -1,7 +1,6 @@
 """CLI interativo do Audit Mind AI."""
 from __future__ import annotations
 
-import os
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -16,7 +15,7 @@ from rich.table import Table
 from . import __version__
 from .config import get_settings
 from .graph import build_graph
-from .llm import LLMConfigError, get_llm, reset_llm_cache
+from .llm import LLMConfigError, get_llm
 from .logging_config import setup_logging
 
 app = typer.Typer(add_completion=False, help="Audit Mind AI — auditoria de projetos com LangGraph.")
@@ -95,16 +94,12 @@ def audit(
     ),
 ):
     """Executa uma auditoria completa em PATH e emite o relatório final."""
-    # Overrides de runtime: definem o ambiente e recarregam a config/modelo.
-    if provider:
-        os.environ["AUDITOR_PROVIDER"] = provider
-    if model:
-        os.environ["AUDITOR_MODEL"] = model
-    if provider or model:
-        get_settings.cache_clear()
-        reset_llm_cache()
-
+    # Provedor/modelo efetivos: flag da CLI ou default das settings. Passados via
+    # estado do grafo (sem mutar os.environ global).
     settings = get_settings()
+    eff_provider = provider or settings.provider
+    eff_model = model or settings.model
+
     root = Path(path).expanduser().resolve()
     if not root.is_dir():
         console.print(f"[red]Erro:[/red] diretório não encontrado: {root}")
@@ -112,7 +107,7 @@ def audit(
 
     # Valida credencial/pacote do provedor cedo, com mensagem acionável.
     try:
-        get_llm()
+        get_llm(eff_provider, eff_model)
     except LLMConfigError as exc:
         console.print(f"[red]Erro de configuração do LLM:[/red] {exc}")
         raise typer.Exit(code=1)
@@ -121,7 +116,7 @@ def audit(
         Panel(
             f"[bold]Audit Mind AI[/bold] v{__version__}\n"
             f"Projeto: [cyan]{root}[/cyan]\n"
-            f"Provedor: [cyan]{settings.provider}[/cyan] · Modelo: [cyan]{settings.model}[/cyan]",
+            f"Provedor: [cyan]{eff_provider}[/cyan] · Modelo: [cyan]{eff_model}[/cyan]",
             border_style="blue",
         )
     )
@@ -133,6 +128,8 @@ def audit(
     initial = {
         "project_path": str(root),
         "user_goal": goal or "",
+        "provider": eff_provider,
+        "model": eff_model,
         "skip_questions": no_questions,
         "user_context": {},
         "findings": [],

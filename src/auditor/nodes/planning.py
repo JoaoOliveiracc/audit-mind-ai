@@ -21,7 +21,7 @@ _DEFAULT_DIMENSIONS = [
 
 def planning_node(state: AuditState) -> dict:
     """Define o plano de auditoria (dimensões + notas de foco)."""
-    llm = get_llm().with_structured_output(AuditPlan)
+    llm = get_llm(state.get("provider"), state.get("model")).with_structured_output(AuditPlan)
     prompt = PLANNING_PROMPT.format(
         dimensions=", ".join(sorted(_VALID_DIMENSIONS)),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False, indent=2),

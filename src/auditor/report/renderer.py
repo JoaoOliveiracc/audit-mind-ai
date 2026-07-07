@@ -61,7 +61,7 @@ def render_markdown(ctx: dict[str, Any]) -> str:
     """Gera o relatório em Markdown."""
     lines: list[str] = []
     a = lines.append
-    a(f"# Relatório de Auditoria — Audit Mind AI\n")
+    a("# Relatório de Auditoria — Audit Mind AI\n")
     a(f"- **Projeto:** `{ctx['project_path']}`")
     a(f"- **Gerado em:** {ctx['generated_at']}")
     a(f"- **Pontuação de saúde:** {ctx['health_score']}/100")

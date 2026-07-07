@@ -31,7 +31,7 @@ def synthesis_node(state: AuditState) -> dict:
     score = compute_health_score(findings)
     counts = severity_counts(findings)
 
-    llm = get_llm()
+    llm = get_llm(state.get("provider"), state.get("model"))
     prompt = SYNTHESIS_PROMPT.format(
         user_goal=state.get("user_goal") or "(não especificado)",
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),

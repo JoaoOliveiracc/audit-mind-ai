@@ -40,7 +40,7 @@ def _make_project(tmp_path: Path) -> Path:
 def test_adversarial_drops_refuted_keeps_confirmed(tmp_path, monkeypatch):
     root = _make_project(tmp_path)
     monkeypatch.setattr(adv, "get_settings", lambda: _Settings())
-    monkeypatch.setattr(adv, "get_llm", lambda: _FakeLLM())
+    monkeypatch.setattr(adv, "get_llm", lambda *a, **k: _FakeLLM())
 
     findings = [
         {"title": "REFUTAR-ME falso positivo", "severity": "critical",

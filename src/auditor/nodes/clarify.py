@@ -21,7 +21,7 @@ def plan_questions_node(state: AuditState) -> dict:
     if state.get("skip_questions"):
         return {"clarifying_questions": []}
 
-    llm = get_llm().with_structured_output(ClarifyingQuestions)
+    llm = get_llm(state.get("provider"), state.get("model")).with_structured_output(ClarifyingQuestions)
     prompt = CLARIFY_PROMPT.format(
         user_goal=state.get("user_goal") or "(não especificado)",
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False, indent=2),

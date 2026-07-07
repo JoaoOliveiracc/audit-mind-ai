@@ -139,6 +139,9 @@ class AuditState(TypedDict, total=False):
     # Entradas
     project_path: str
     user_goal: str
+    # Provedor/modelo efetivos desta auditoria (override por run; vazio = usa settings)
+    provider: str
+    model: str
 
     # Conversa
     messages: Annotated[list[AnyMessage], add_messages]
