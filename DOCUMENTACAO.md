@@ -11,9 +11,10 @@
 > **Markdown + HTML** com uma pontuação de saúde de 0–100.
 
 > ℹ️ **Este documento foi reescrito** para refletir a arquitetura atual (`src/auditor/`, LangGraph).
-> A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** — ver
-> [§12 Legado](#12-legado-appy-removido). A maioria dos gaps originais (G1–G13) e das correções
-> subsequentes (G15–G21) foi **resolvida**; ver [§10 Gaps](#10-gaps-identificados).
+> A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
+> histórico do git) — ver [§12 Legado](#12-legado-appy-removido). A maioria dos gaps originais
+> (G1–G13) e das correções subsequentes (G14–G21, G23–G24) foi **resolvida**; resta a rotação
+> da chave (G14) e itens de robustez (G20, G22 já resolvido) — ver [§10 Gaps](#10-gaps-identificados).
 
 ---
 
@@ -392,7 +393,7 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
 
 | # | Gap | Severidade | Status |
 |---|-----|-----------|--------|
-| **G14** | **Segredo real committado**: o legado `app.py:16` continha uma API key hardcoded. | 🔴 Crítico | ⚠️ **Parcial** — `app.py` **removido** do working tree, mas a chave **permanece no histórico do git**. Ação do usuário: **rotacionar** a chave no provider e (opcional) **limpar o histórico** (`git filter-repo`/BFG). |
+| **G14** | **Segredo real committado**: o legado `app.py:16` continha uma API key hardcoded. | 🔴 Crítico | ✅ **Histórico limpo** — `app.py` removido de **todos** os commits com `git filter-repo` e **force-push** em `main`/`develop`/`feature/adversarialNode`. ⚠️ **Falta ação do usuário:** (1) **ROTACIONAR** a chave no console do provider — ela esteve pública; (2) opcionalmente pedir ao GitHub Support para purgar caches/SHAs órfãos. |
 | G15 | `app.py` legado no repo, fora da arquitetura atual. | 🟠 Alto | ✅ **Resolvido** — arquivo removido (`git rm app.py`). |
 | G16 | Dois frontends (`frontend/` Vite × `web/` Next legado). | 🟠 Alto | ✅ **Resolvido** — `web/` removido; `frontend/` (Vite) é o oficial. |
 | G17 | Porta da API inconsistente (8020/8010/8000). | 🟠 Alto | ✅ **Resolvido** — unificada em **8020** (código, `vite.config.ts`, `Makefile`, README, docs). |
@@ -401,15 +402,17 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
 | G20 | Registry da API em memória por processo. | 🟡 Médio | ℹ️ **Aceito p/ uso local** — dentro do processo há replay do SSE por índice (reconexão OK); só o modo multi-instância exigiria persistir eventos. Reavaliar se houver deploy horizontal. |
 | G21 | Logging estruturado ausente (só `rich.Console`). | 🟡 Médio | ✅ **Resolvido** — `auditor.logging_config` (nível via `AUDITOR_LOG_LEVEL`), aplicado na CLI, API, `llm` e runner. |
 | G22 | Override de provider/modelo via `os.environ` é processo-global. | 🟢 Baixo | ⏳ **Pendente** — aceitável para a CLI (1 processo/auditoria); para a API multi-tenant exigiria isolar o LLM por run (refactor). |
-| G23 | Docs secundárias (`docs/FRONTEND_SPEC.md`, `docs/ROADMAP.md`) ainda citam o `web/` Next. | 🟢 Baixo | ⏳ **Pendente** — atualizar quando o design do frontend for reescrito para Vite. |
+| G23 | Docs secundárias (`docs/FRONTEND_SPEC.md`, `docs/ROADMAP.md`) ainda citam o `web/` Next. | 🟢 Baixo | ✅ **Resolvido** — `ROADMAP` atualizado p/ Vite; `FRONTEND_SPEC` recebeu banner de "superseded" apontando p/ `frontend/`. |
+| G24 | Hook `.githooks/pre-commit`: o padrão de chave privada começava com `-`, quebrando o `grep` (detecção silenciosamente pulada). | 🟡 Médio | ✅ **Resolvido** — `grep -Eq -e "$pat"`; a varredura de chave privada volta a funcionar. |
 
 ---
 
 ## 11. Melhorias Sugeridas (Roadmap)
 
-### Higiene imediata — ✅ feito nesta rodada (G15–G19, G21)
-1. ✅ **`app.py` legado removido** (G15). ⚠️ **Falta ação do usuário:** rotacionar a chave exposta
-   e, se desejado, limpar o histórico do git (a chave ainda vive no histórico — G14).
+### Higiene imediata — ✅ feito nesta rodada (G14–G19, G21, G23–G24)
+1. ✅ **`app.py` legado removido** (G15) **e apagado de todo o histórico** (`git filter-repo` +
+   force-push nas 3 branches — G14). ⚠️ **Falta ação do usuário:** **rotacionar** a chave (esteve
+   pública). Hook de pre-commit corrigido para detectar chaves privadas (G24).
 2. ✅ **Porta da API unificada em 8020** (código, `vite.config.ts`, `Makefile`, README, docs — G17).
 3. ✅ **Frontend consolidado**: `web/` (Next) removido; `frontend/` (Vite) é o oficial; `Makefile`
    atualizado (`make frontend`/`make dev`) — G16/G18.
@@ -417,12 +420,12 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
 5. ✅ **Logging estruturado** (`auditor.logging_config`, nível por `AUDITOR_LOG_LEVEL`) na CLI, API,
    `llm` e runner — G21.
 
-### Robustez — pendente (G20, G22)
-6. Isolar overrides de provider/modelo **por auditoria** (não via `os.environ` global) para
-   suportar múltiplas auditorias concorrentes com providers distintos — G22.
+6. ✅ **G22 resolvido**: `get_llm(provider, model)` por auditoria, sem mutar `os.environ` global —
+   auditorias concorrentes com provedores distintos deixam de colidir.
+
+### Robustez — pendente (G20)
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
-8. Atualizar `docs/FRONTEND_SPEC.md` e `docs/ROADMAP.md` (ainda citam o `web/` Next) — G23.
 
 ### Produto / escala
 8. **Export SARIF** dos findings (integra com GitHub Code Scanning / CI) além de JSON/MD/HTML.
@@ -438,12 +441,16 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
 todo o código do projeto num prompt de sistema e conversava com `ChatOllama`. Foi **superado**
 por `src/auditor/` e **removido** do repositório nesta rodada de correções (G15).
 
-> 🔴 **Ação ainda necessária (usuário):** o `app.py` continha uma API key hardcoded
-> (`sk-indexacao-…`) **committada no histórico do git**. Remover o arquivo do working tree **não**
-> apaga o segredo do histórico. A chave deve ser considerada **comprometida** e:
-> 1. **rotacionada** no console do provider (imediato);
-> 2. opcionalmente **eliminada do histórico** com `git filter-repo` ou BFG (reescreve histórico
->    compartilhado — coordenar com quem já clonou o repo).
+> ✅ **Histórico já saneado:** o `app.py` foi removido de **todos** os commits com `git filter-repo`
+> e as três branches (`main`/`develop`/`feature/adversarialNode`) foram force-pushed. O segredo
+> não aparece mais nas pontas das branches.
+>
+> 🔴 **Ação ainda necessária (usuário):** a chave `sk-indexacao-…` esteve **pública** no GitHub —
+> considere-a **comprometida** e:
+> 1. **rotacione-a** no console do provider (imediato e imprescindível — a reescrita de histórico
+>    não desfaz a exposição que já ocorreu);
+> 2. opcionalmente peça ao GitHub Support para purgar caches/SHAs órfãos, pois commits antigos
+>    podem seguir acessíveis por hash até o garbage collection.
 >
 > Ironicamente, é exatamente o tipo de achado que este agente reportaria — ver
 > [§10 G14](#10-gaps-identificados).

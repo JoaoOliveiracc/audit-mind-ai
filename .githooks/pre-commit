@@ -43,7 +43,7 @@ for f in "${staged[@]}"; do
   added="$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++' || true)"
   [ -z "$added" ] && continue
   for pat in "${patterns[@]}"; do
-    if printf '%s' "$added" | grep -Eq "$pat"; then
+    if printf '%s' "$added" | grep -Eq -e "$pat"; then
       printf "${RED}✗ Segredo:${NC} possível chave real em '%s' (padrão: %s).\n" "$f" "$pat"
       fail=1
     fi
