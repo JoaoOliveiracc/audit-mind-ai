@@ -8,6 +8,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader
 
 from ..state import Severity
+from .sarif import render_sarif
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -169,8 +170,8 @@ def render_html(ctx: dict[str, Any]) -> str:
     return template.render(**ctx)
 
 
-def write_reports(state: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
-    """Renderiza e grava os relatórios Markdown e HTML; retorna os caminhos."""
+def write_reports(state: dict[str, Any], output_dir: Path) -> tuple[Path, Path, Path]:
+    """Renderiza e grava os relatórios Markdown, HTML e SARIF; retorna os caminhos."""
     output_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
@@ -178,6 +179,8 @@ def write_reports(state: dict[str, Any], output_dir: Path) -> tuple[Path, Path]:
 
     md_path = output_dir / f"auditoria-{stamp}.md"
     html_path = output_dir / f"auditoria-{stamp}.html"
+    sarif_path = output_dir / f"auditoria-{stamp}.sarif"
     md_path.write_text(render_markdown(ctx), encoding="utf-8")
     html_path.write_text(render_html(ctx), encoding="utf-8")
-    return md_path, html_path
+    sarif_path.write_text(render_sarif(state), encoding="utf-8")
+    return md_path, html_path, sarif_path

@@ -51,10 +51,16 @@ class AuditStore:
                 counts_json TEXT,
                 report_html TEXT,
                 report_md TEXT,
+                report_sarif TEXT,
                 error TEXT
             )
             """
         )
+        # Migração idempotente: bancos criados antes da coluna SARIF.
+        try:
+            self._conn.execute("ALTER TABLE audits ADD COLUMN report_sarif TEXT")
+        except sqlite3.OperationalError:
+            pass  # coluna já existe
         self._conn.commit()
 
     def create(self, audit_id: str, project_path: str, goal: Optional[str],

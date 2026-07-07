@@ -12,9 +12,10 @@ def report_node(state: AuditState) -> dict:
     """Gera os relatórios finais e retorna seus caminhos."""
     settings = get_settings()
     output_dir = Path(settings.output_dir).expanduser().resolve()
-    md_path, html_path = write_reports(dict(state), output_dir)
+    md_path, html_path, sarif_path = write_reports(dict(state), output_dir)
     return {
         "report_markdown_path": str(md_path),
         "report_html_path": str(html_path),
+        "report_sarif_path": str(sarif_path),
         "status": "completed",
     }

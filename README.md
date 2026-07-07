@@ -15,6 +15,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 - **Anti-hallucination** — every finding's evidence is checked on disk (deterministic, no LLM); unsubstantiated findings are dropped. An optional **adversarial LLM judge** then tries to refute the remaining findings before the report.
 - **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
 - **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
+- **SARIF export** — findings also emitted as SARIF 2.1.0, ready to upload to **GitHub Code Scanning** (inline PR alerts) or any SARIF-aware CI.
 - **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies.
 
 ## 🏗️ Architecture at a glance
@@ -45,12 +46,23 @@ auditor audit /path/to/project --goal "Preparing for production, security focus"
 ```
 
 The agent will ask a few questions in the terminal, run the audit and write the
-reports to `./audit-reports/` (configurable via `AUDITOR_OUTPUT_DIR`).
+reports to `./audit-reports/` (configurable via `AUDITOR_OUTPUT_DIR`) — as
+`auditoria-<timestamp>.{md,html,sarif}`.
 
 ### Non-interactive mode (CI/pipeline)
 
 ```bash
 auditor audit /path/to/project --no-questions
+```
+
+The run also emits a **SARIF** file. To surface findings as inline alerts on a PR
+via GitHub Code Scanning:
+
+```yaml
+- run: auditor audit . --no-questions
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: audit-reports/   # uploads the generated .sarif
 ```
 
 ### Run from any terminal (global installation)
@@ -112,7 +124,7 @@ auditor serve            # http://127.0.0.1:8020 — interactive docs at /docs
 
 Endpoints: `POST /audits` (start), `GET /audits` / `GET /audits/{id}` (list/status),
 `GET /audits/{id}/stream` (SSE for progress and clarifications), `POST /audits/{id}/answers`
-(human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md`,
+(human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md|sarif`,
 `GET /fs/browse` (folder picker), `GET /providers`. State persisted via `SqliteSaver`.
 Full design in [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
 

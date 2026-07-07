@@ -203,6 +203,7 @@ def _print_summary(state: dict) -> None:
 
     console.print(f"\n[bold]Markdown:[/bold] {state.get('report_markdown_path', '—')}")
     console.print(f"[bold]HTML:[/bold]     {state.get('report_html_path', '—')}")
+    console.print(f"[bold]SARIF:[/bold]    {state.get('report_sarif_path', '—')}")
 
 
 @app.command()

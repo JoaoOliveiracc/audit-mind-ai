@@ -106,6 +106,7 @@ class AuditRunner:
                 self.id, status="completed", health_score=health, counts=counts,
                 report_html=final.get("report_html_path"),
                 report_md=final.get("report_markdown_path"),
+                report_sarif=final.get("report_sarif_path"),
             )
             self._emit("completed", {"health_score": health, "counts": counts})
             logger.info("Auditoria %s concluída (score=%s)", self.id, health)

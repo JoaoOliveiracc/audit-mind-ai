@@ -174,6 +174,7 @@ class AuditState(TypedDict, total=False):
     executive_summary: str
     report_markdown_path: str
     report_html_path: str
+    report_sarif_path: str
 
     # Controle
     status: str

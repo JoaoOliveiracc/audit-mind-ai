@@ -46,7 +46,7 @@
 | Providers suportados | anthropic, openai, azure_openai, google_genai, google_vertexai, groq, mistralai, cohere, together, fireworks, deepseek, bedrock, ollama |
 | Interfaces | CLI (`auditor`), API REST (FastAPI + SSE), Frontend web (Vite/React) |
 | Estado | Persistido em SQLite (`SqliteSaver` + metadados) sob `~/.config/auditor/` |
-| Saída | Relatório Markdown + HTML autocontido; findings em JSON via API |
+| Saída | Relatório Markdown + HTML autocontido + **SARIF 2.1.0**; findings em JSON via API |
 | Pacote | `src/auditor/` (~2.5k linhas), instalável (`pip install -e .`), entry point `auditor` |
 
 **Objetivo:** dado o caminho de um projeto, detectar sua stack, planejar as dimensões de
@@ -90,7 +90,7 @@ relatório profissional — sem nunca modificar o código auditado.
 - `auditor.nodes.*` — um módulo por nó do grafo.
 - `auditor.tools.*` — ferramentas read-only (`filesystem`) e utilitários de descoberta (`project`).
 - `auditor.prompts.templates` — prompts de sistema, guidance por dimensão, lentes do juiz.
-- `auditor.report.renderer` — renderização Markdown/HTML (Jinja2).
+- `auditor.report.renderer` / `auditor.report.sarif` — renderização Markdown/HTML (Jinja2) e SARIF 2.1.0.
 - `auditor.llm` / `auditor.config` — fábrica de LLM multi-provider e configurações (`pydantic-settings`).
 - `auditor.cli` — CLI Typer (`audit`, `serve`, `providers`, `version`).
 - `auditor.api.*` — FastAPI: rotas, runner em background, store SQLite, schemas.
@@ -224,7 +224,7 @@ Principais endpoints:
 | `GET`  | `/audits/{id}/stream` | **SSE**: progresso, esclarecimentos e conclusão. |
 | `POST` | `/audits/{id}/answers` | Envia respostas de esclarecimento (human-in-the-loop). |
 | `GET`  | `/audits/{id}/findings` | Achados estruturados (JSON) para o dashboard. |
-| `GET`  | `/audits/{id}/report?format=html\|md` | Relatório renderizado. |
+| `GET`  | `/audits/{id}/report?format=html\|md\|sarif` | Relatório renderizado (SARIF via `application/sarif+json`). |
 
 Estado do grafo persistido em `SqliteSaver`; metadados das auditorias em SQLite
 (`~/.config/auditor/audits.sqlite` e `audits-checkpoints.sqlite`). CORS restrito ao frontend local.
@@ -272,7 +272,7 @@ make lint          # ruff check src tests
 | `verify_node` | `verify.py` | Verificação **determinística** de evidência no disco (sem LLM); descarta achados alucinados. |
 | `adversarial_node` | `adversarial.py` | Juiz LLM cético (opcional) refuta achados elegíveis; votação por lentes. |
 | `synthesis_node` | `synthesis.py` | `compute_health_score` (0–100) + resumo executivo + contagem por severidade. |
-| `report_node` | `report.py` | Renderiza e grava Markdown + HTML. |
+| `report_node` | `report.py` | Renderiza e grava Markdown + HTML + SARIF (`report/sarif.py`). |
 
 ### Ferramentas read-only (`auditor/tools/filesystem.py`)
 
@@ -428,7 +428,8 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
 ### Produto / escala
-8. **Export SARIF** dos findings (integra com GitHub Code Scanning / CI) além de JSON/MD/HTML.
+8. ✅ **Export SARIF** dos findings — implementado (`auditor.report.sarif`); gravado junto ao
+   MD/HTML e exposto na API (`?format=sarif`). Integra com GitHub Code Scanning / CI.
 9. Paralelizar os investigadores por dimensão (hoje sequenciais no `audit_node`).
 10. RAG/indexação para monorepos gigantes (recuperar trechos por dimensão) e cache de prompt.
 11. Ampliar a suíte de testes (cobertura dos nós `discovery`/`planning`/`synthesis` e um e2e com LLM mockado).

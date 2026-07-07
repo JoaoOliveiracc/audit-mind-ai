@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from sse_starlette.sse import EventSourceResponse
 
 from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
@@ -178,17 +178,21 @@ def get_findings(audit_id: str) -> dict:
 
 @router.get("/audits/{audit_id}/report")
 def get_report(audit_id: str, format: str = "html"):
-    """Retorna o relatório renderizado (html | md)."""
+    """Retorna o relatório renderizado (html | md | sarif)."""
     record = get_store().get(audit_id)
     if not record:
         raise HTTPException(404, "Auditoria não encontrada.")
-    key = "report_html" if format == "html" else "report_md"
+    key = {"html": "report_html", "md": "report_md", "sarif": "report_sarif"}.get(
+        format, "report_html"
+    )
     path = record.get(key)
     if not path or not Path(path).is_file():
         raise HTTPException(409, "Relatório ainda não disponível.")
     content = Path(path).read_text(encoding="utf-8")
     if format == "html":
         return HTMLResponse(content)
+    if format == "sarif":
+        return Response(content, media_type="application/sarif+json")
     return PlainTextResponse(content)
 
 
