@@ -11,7 +11,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 - **Stack-agnostic** — automatically detects languages, frameworks and package managers (Python, Node, Go, Rust, Java, PHP, Ruby, .NET, and more).
 - **Multi-provider LLM** — switch provider via environment variable or CLI flag (`--provider`), through `init_chat_model`. Supports Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, Ollama (local), Bedrock, and others.
 - **Human-in-the-loop** — the agent asks clarifying questions before auditing, using LangGraph's `interrupt`.
-- **Per-dimension ReAct investigators** — each dimension is audited by a sub-agent that explores the code with tools (read file, list directory, search patterns).
+- **Per-dimension ReAct investigators** — each dimension is audited by a sub-agent that explores the code with tools (read file, list directory, search patterns). Investigators run **in parallel** (configurable via `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`).
 - **Anti-hallucination** — every finding's evidence is checked on disk (deterministic, no LLM); unsubstantiated findings are dropped. An optional **adversarial LLM judge** then tries to refute the remaining findings before the report.
 - **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
 - **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
@@ -167,7 +167,8 @@ pytest -q          # smoke tests (offline, no LLM)
 
 All options come from environment variables (see [`.env.example`](.env.example)):
 `ANTHROPIC_API_KEY`, `AUDITOR_MODEL`, `AUDITOR_TEMPERATURE`, `AUDITOR_MAX_FILES`,
-`AUDITOR_MAX_INVESTIGATOR_STEPS`, `AUDITOR_OUTPUT_DIR`, among others.
+`AUDITOR_MAX_INVESTIGATOR_STEPS`, `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`,
+`AUDITOR_OUTPUT_DIR`, among others.
 
 ## 📄 License
 

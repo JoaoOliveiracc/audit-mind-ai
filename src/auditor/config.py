@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     max_files: int = Field(default=5000, alias="AUDITOR_MAX_FILES")
     max_search_results: int = Field(default=50, alias="AUDITOR_MAX_SEARCH_RESULTS")
     max_investigator_steps: int = Field(default=80, alias="AUDITOR_MAX_INVESTIGATOR_STEPS")
+    # Investigadores por dimensão rodam em paralelo (thread pool). 1 = sequencial.
+    # Cuidado ao aumentar com Ollama local ou provedores com rate limit baixo.
+    max_concurrent_investigators: int = Field(default=4, alias="AUDITOR_MAX_CONCURRENT_INVESTIGATORS")
 
     # Comportamento
     log_level: str = Field(default="INFO", alias="AUDITOR_LOG_LEVEL")

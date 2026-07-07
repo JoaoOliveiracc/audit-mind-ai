@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from langgraph.prebuilt import create_react_agent
@@ -59,43 +60,78 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
 
 
 def audit_node(state: AuditState) -> dict:
-    """Roda os investigadores para cada dimensão do plano e agrega os achados."""
+    """Roda os investigadores das dimensões do plano em paralelo e agrega os achados.
+
+    Cada investigador é I/O-bound (chamadas ao LLM), então rodam concorrentemente
+    num thread pool (até ``AUDITOR_MAX_CONCURRENT_INVESTIGATORS``). O progresso
+    (SSE/console) é emitido pela thread principal — onde o contexto do stream writer
+    do LangGraph é válido — e a agregação final segue a ordem do plano
+    (determinística, independente da ordem de conclusão).
+    """
     settings = get_settings()
     root = Path(state["project_path"]).expanduser().resolve()
     tools = make_project_tools(root, settings)
     llm = get_llm(state.get("provider"), state.get("model"))
 
     dimensions = state.get("plan", {}).get("dimensions", [])
+    total = len(dimensions)
+    if not dimensions:
+        return {"findings": [], "dimension_summaries": [], "status": "audited"}
+
+    index_of = {dim: i for i, dim in enumerate(dimensions, start=1)}
+    results: dict[str, DimensionResult | None] = {}
+    errors: dict[str, str] = {}
+
+    max_workers = max(1, min(settings.max_concurrent_investigators, total))
+    _console.print(
+        f"[cyan]›[/cyan] Auditando {total} dimensão(ões) "
+        f"({max_workers} em paralelo): [bold]{', '.join(dimensions)}[/bold]"
+    )
+    for dim in dimensions:
+        _emit({"type": "investigator", "dimension": dim, "status": "start",
+               "index": index_of[dim], "total": total})
+
+    with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="investig") as pool:
+        futures = {
+            pool.submit(_investigate_dimension, dim, state, tools, llm, settings): dim
+            for dim in dimensions
+        }
+        for future in as_completed(futures):
+            dim = futures[future]
+            idx = index_of[dim]
+            try:
+                dr = future.result()
+            except Exception as exc:  # falha de uma dimensão não derruba as demais
+                errors[dim] = str(exc)
+                _console.print(f"[yellow]  aviso: falha ao auditar '{dim}': {exc}[/yellow]")
+                _emit({"type": "investigator", "dimension": dim, "status": "error",
+                       "index": idx, "total": total, "message": str(exc)})
+                continue
+
+            results[dim] = dr
+            if dr is None:
+                _emit({"type": "investigator", "dimension": dim, "status": "empty",
+                       "index": idx, "total": total})
+                continue
+            _console.print(f"[green]  ✓[/green] {len(dr.findings)} achado(s) em '{dim}'")
+            _emit({"type": "investigator", "dimension": dim, "status": "done",
+                   "index": idx, "total": total, "findings_count": len(dr.findings)})
+
+    # Agrega na ordem do plano (determinística, independente da conclusão).
     all_findings: list[dict] = []
     summaries: list[dict] = []
-
-    total = len(dimensions)
-    for idx, dim in enumerate(dimensions, start=1):
-        _console.print(f"[cyan]›[/cyan] Auditando dimensão: [bold]{dim}[/bold] …")
-        _emit({"type": "investigator", "dimension": dim, "status": "start",
-               "index": idx, "total": total})
-        try:
-            dr = _investigate_dimension(dim, state, tools, llm, settings)
-        except Exception as exc:  # investigação de uma dimensão não deve derrubar tudo
-            _console.print(f"[yellow]  aviso: falha ao auditar '{dim}': {exc}[/yellow]")
-            summaries.append({"dimension": dim, "summary": f"Falha na análise: {exc}"})
-            _emit({"type": "investigator", "dimension": dim, "status": "error",
-                   "index": idx, "total": total, "message": str(exc)})
+    for dim in dimensions:
+        if dim in errors:
+            summaries.append({"dimension": dim, "summary": f"Falha na análise: {errors[dim]}"})
             continue
-
+        dr = results.get(dim)
         if dr is None:
             summaries.append({"dimension": dim, "summary": "Sem resultado estruturado."})
-            _emit({"type": "investigator", "dimension": dim, "status": "empty",
-                   "index": idx, "total": total})
             continue
-
         for finding in dr.findings:
             finding.dimension = dim
             all_findings.append(finding.model_dump(mode="json"))
         summaries.append({"dimension": dim, "summary": dr.summary})
-        _console.print(f"[green]  ✓[/green] {len(dr.findings)} achado(s) em '{dim}'")
-        _emit({"type": "investigator", "dimension": dim, "status": "done",
-               "index": idx, "total": total, "findings_count": len(dr.findings)})
 
     return {
         "findings": all_findings,

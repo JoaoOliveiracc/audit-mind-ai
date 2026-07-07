@@ -168,6 +168,7 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 | `AUDITOR_MAX_FILES` | `5000` | Máx. de arquivos no inventário. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Máx. de resultados por busca. |
 | `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` de cada investigador ReAct. |
+| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigadores de dimensão em paralelo (1 = sequencial). |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Diretório dos relatórios. |
 | `AUDITOR_VERIFY_EVIDENCE` | `true` | Verificação determinística de evidência (§9). |
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Juiz adversarial (custa tokens; §9). |
@@ -268,7 +269,7 @@ make lint          # ruff check src tests
 | `plan_questions_node` | `clarify.py` | Gera perguntas de esclarecimento (Pydantic `ClarifyingQuestions`). |
 | `clarify_node` | `clarify.py` | `interrupt` para human-in-the-loop; coleta `user_context`. Pulado se `skip_questions`. |
 | `planning_node` | `planning.py` | LLM seleciona as dimensões aplicáveis (`AuditPlan`); fallback p/ dimensões padrão. |
-| `audit_node` | `audit.py` | Um `create_react_agent` por dimensão, com tools read-only; agrega `Finding`s. Emite eventos SSE. |
+| `audit_node` | `audit.py` | Um `create_react_agent` por dimensão (com tools read-only), rodando **em paralelo** (thread pool, `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`); agrega `Finding`s na ordem do plano. Emite eventos SSE pela thread principal. |
 | `verify_node` | `verify.py` | Verificação **determinística** de evidência no disco (sem LLM); descarta achados alucinados. |
 | `adversarial_node` | `adversarial.py` | Juiz LLM cético (opcional) refuta achados elegíveis; votação por lentes. |
 | `synthesis_node` | `synthesis.py` | `compute_health_score` (0–100) + resumo executivo + contagem por severidade. |
@@ -323,7 +324,8 @@ health_score = max(0, 100 - min(100, penalty))
 3. **clarify** — `interrupt`: pausa e aguarda respostas do usuário (CLI ou API). Pulado com `--no-questions`.
 4. **planning** — o LLM escolhe as dimensões relevantes e as notas de foco.
 5. **audit** — para cada dimensão, um investigador ReAct explora o código com as tools read-only
-   e retorna um `DimensionResult` estruturado; os achados são agregados.
+   e retorna um `DimensionResult` estruturado; os investigadores rodam **em paralelo** (thread
+   pool) e os achados são agregados na ordem do plano.
 6. **verify** — cada achado é conferido no disco (arquivo existe? evidência aparece? linha no
    intervalo?). Não-substanciados são **descartados**; sem-evidência têm confiança rebaixada.
 7. **adversarial** *(opcional)* — juiz LLM cético tenta refutar cada achado elegível; refutados
@@ -430,7 +432,8 @@ Estado após a rodada de correções (ver [§11](#11-melhorias-sugeridas-roadmap
 ### Produto / escala
 8. ✅ **Export SARIF** dos findings — implementado (`auditor.report.sarif`); gravado junto ao
    MD/HTML e exposto na API (`?format=sarif`). Integra com GitHub Code Scanning / CI.
-9. Paralelizar os investigadores por dimensão (hoje sequenciais no `audit_node`).
+9. ✅ **Investigadores paralelos** — implementado no `audit_node` (thread pool, limite por
+   `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`); agregação determinística na ordem do plano.
 10. RAG/indexação para monorepos gigantes (recuperar trechos por dimensão) e cache de prompt.
 11. Ampliar a suíte de testes (cobertura dos nós `discovery`/`planning`/`synthesis` e um e2e com LLM mockado).
 
