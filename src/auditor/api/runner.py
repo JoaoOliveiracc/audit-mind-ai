@@ -11,8 +11,10 @@ from typing import Any, Optional
 
 from langgraph.types import Command
 
-from ..state import SEVERITY_WEIGHT
+from ..logging_config import get_logger
 from .store import AuditStore
+
+logger = get_logger("api.runner")
 
 NODE_LABELS = {
     "discovery": "Descoberta e detecção de stack",
@@ -20,6 +22,8 @@ NODE_LABELS = {
     "clarify": "Esclarecimentos",
     "planning": "Planejando dimensões",
     "audit": "Executando investigadores",
+    "verify": "Verificando evidência dos achados",
+    "adversarial": "Julgamento adversarial dos achados",
     "synthesis": "Consolidando e pontuando",
     "report": "Gerando relatório",
 }
@@ -85,6 +89,7 @@ class AuditRunner:
         return "done"
 
     def _run(self) -> None:
+        logger.info("Auditoria %s iniciada", self.id)
         try:
             result = self._drive(self._initial)
             while result == "interrupted":
@@ -103,7 +108,9 @@ class AuditRunner:
                 report_md=final.get("report_markdown_path"),
             )
             self._emit("completed", {"health_score": health, "counts": counts})
+            logger.info("Auditoria %s concluída (score=%s)", self.id, health)
         except Exception as exc:  # noqa: BLE001
+            logger.exception("Auditoria %s falhou: %s", self.id, exc)
             self._store.update(self.id, status="error", error=str(exc))
             self._emit("error", {"message": str(exc)})
         finally:

@@ -17,6 +17,7 @@ from . import __version__
 from .config import get_settings
 from .graph import build_graph
 from .llm import LLMConfigError, get_llm, reset_llm_cache
+from .logging_config import setup_logging
 
 app = typer.Typer(add_completion=False, help="Audit Mind AI — auditoria de projetos com LangGraph.")
 console = Console()
@@ -27,9 +28,17 @@ _NODE_LABELS = {
     "clarify": "💬 Esclarecimentos",
     "planning": "🗺️  Planejando dimensões de auditoria",
     "audit": "🕵️  Executando investigadores",
+    "verify": "🔬 Verificando evidência dos achados",
+    "adversarial": "⚖️  Julgamento adversarial dos achados",
     "synthesis": "🧠 Consolidando e pontuando",
     "report": "📄 Gerando relatório",
 }
+
+
+@app.callback()
+def _main() -> None:
+    """Inicializa o logging (nível via AUDITOR_LOG_LEVEL) antes de qualquer comando."""
+    setup_logging(get_settings().log_level)
 
 
 def _ask_clarifying_questions(interrupts) -> dict[str, str]:

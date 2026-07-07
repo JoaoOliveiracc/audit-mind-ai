@@ -13,6 +13,9 @@ from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 
 from .config import get_settings
+from .logging_config import get_logger
+
+logger = get_logger("llm")
 
 
 class LLMConfigError(RuntimeError):
@@ -48,6 +51,7 @@ def get_llm() -> BaseChatModel:
     if settings.base_url:
         kwargs["base_url"] = settings.base_url
 
+    logger.info("Inicializando LLM: provider=%s model=%s", settings.provider, settings.model)
     try:
         return init_chat_model(**kwargs)
     except ImportError as exc:

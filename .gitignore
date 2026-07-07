@@ -21,6 +21,13 @@ audit-reports/
 *.audit.md
 *.audit.html
 
+# Node / frontend (cobre a raiz e workspaces pnpm; frontend/ tem seu próprio .gitignore)
+node_modules/
+dist/
+.pnpm-store/
+npm-debug.log*
+pnpm-debug.log*
+
 # IDE
 .vscode/
 .idea/
