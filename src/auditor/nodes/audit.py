@@ -5,12 +5,13 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 from rich.console import Console
 
 from ..config import get_settings
 from ..llm import get_llm
-from ..prompts.templates import DIMENSION_GUIDANCE, INVESTIGATOR_PROMPT
+from ..prompts.templates import DIMENSION_GUIDANCE, INVESTIGATOR_PROMPT, STRUCTURE_PROMPT
 from ..state import AuditState, DimensionResult
 from ..tools.filesystem import make_project_tools
 
@@ -36,8 +37,33 @@ def _emit(data: dict) -> None:
         pass
 
 
+def _final_report(messages: list) -> str:
+    """Extrai o texto do último ``AIMessage`` (o relatório final do investigador)."""
+    for msg in reversed(messages):
+        if not isinstance(msg, AIMessage):
+            continue
+        content = msg.content
+        if isinstance(content, list):  # alguns provedores retornam blocos de conteúdo
+            content = "".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        if content and content.strip():
+            return content
+    return ""
+
+
 def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settings) -> DimensionResult | None:
-    """Executa um agent ReAct focado em uma dimensão e retorna o resultado estruturado."""
+    """Investiga uma dimensão em duas fases desacopladas.
+
+    Fase 1 — investigação: um agent ReAct usa as ferramentas para inspecionar o
+    projeto e escreve um relatório textual (sem ``response_format``, evitando o
+    passo terminal de structured-output que reenvia o histórico cheio de tool calls
+    ao LLM). Fase 2 — estruturação: uma chamada isolada de ``with_structured_output``
+    recebe apenas o texto do relatório (sem histórico de ferramentas) e o converte
+    em ``DimensionResult``. Separar as fases elimina os erros de fronteira
+    (tool call vazada / ``tool_calls`` sem resposta no histórico).
+    """
     prompt = INVESTIGATOR_PROMPT.format(
         dimension=dimension,
         project_path=state["project_path"],
@@ -46,17 +72,21 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False),
     )
-    agent = create_react_agent(
-        llm,
-        tools=tools,
-        prompt=prompt,
-        response_format=DimensionResult,
-    )
+    agent = create_react_agent(llm, tools=tools, prompt=prompt)
     result = agent.invoke(
         {"messages": [("user", f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
         config={"recursion_limit": settings.max_investigator_steps},
     )
-    return result.get("structured_response")
+
+    report = _final_report(result.get("messages", []))
+    if not report.strip():
+        return None
+
+    structurer = llm.with_structured_output(DimensionResult)
+    return structurer.invoke([
+        ("system", STRUCTURE_PROMPT.format(dimension=dimension)),
+        ("user", report),
+    ])
 
 
 def audit_node(state: AuditState) -> dict:

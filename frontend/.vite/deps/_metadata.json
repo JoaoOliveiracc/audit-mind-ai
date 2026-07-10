@@ -1,0 +1,37 @@
+{
+  "hash": "fec639c5",
+  "configHash": "8f5d9ae0",
+  "lockfileHash": "e07bc2ca",
+  "browserHash": "720dfee8",
+  "optimized": {
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/.pnpm/react@18.3.1/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "ec08ea52",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/.pnpm/react@18.3.1/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "fb5252e0",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/.pnpm/react-dom@18.3.1_react@18.3.1/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "02276672",
+      "needsInterop": true
+    },
+    "react-markdown": {
+      "src": "../../node_modules/.pnpm/react-markdown@9.1.0_@types+react@18.3.31_react@18.3.1/node_modules/react-markdown/index.js",
+      "file": "react-markdown.js",
+      "fileHash": "ca8b998c",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-OGQ2Q4H2": {
+      "file": "chunk-OGQ2Q4H2.js"
+    }
+  }
+}

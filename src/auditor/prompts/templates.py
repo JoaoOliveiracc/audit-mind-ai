@@ -134,8 +134,27 @@ Regras:
 - Fundamente cada achado em evidência real que você inspecionou.
 - Atribua severidade coerente (critical/high/medium/low/info).
 - Cada achado precisa de recomendação acionável.
-- Se não encontrar problemas relevantes, retorne poucos ou nenhum achado — não invente.
-- Ao terminar a investigação, produza o resultado estruturado final.
+- Se não encontrar problemas relevantes, relate poucos ou nenhum achado — não invente.
+
+Ao terminar a investigação, escreva um RELATÓRIO textual final e pare de chamar
+ferramentas. Comece com um breve resumo executivo da dimensão e, em seguida, liste
+cada achado informando explicitamente: título, severidade, arquivo e linha (quando
+aplicável), evidência (trecho que você inspecionou), descrição do impacto,
+recomendação acionável e sua confiança (0 a 1).
+"""
+
+# --------------------------------------------------------------------------- #
+# Estruturação (fase 2): converte o relatório textual em DimensionResult       #
+# --------------------------------------------------------------------------- #
+STRUCTURE_PROMPT = """Você recebe o relatório textual de um investigador da dimensão
+**{dimension}**. Converta-o FIELMENTE no formato estruturado solicitado, sem inventar
+achados nem omitir os que foram relatados.
+
+- 'summary': o resumo executivo da dimensão presente no relatório.
+- 'findings': um item por achado descrito, preservando título, severidade, arquivo,
+  linha, evidência, descrição, recomendação e confiança conforme o relatório.
+- Se o relatório não apontar achados, retorne 'findings' vazio.
+- 'severity' deve ser exatamente um de: critical, high, medium, low, info.
 """
 
 # --------------------------------------------------------------------------- #
