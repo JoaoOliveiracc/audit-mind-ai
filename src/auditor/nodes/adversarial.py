@@ -10,23 +10,18 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from rich.console import Console
 
 from ..config import get_settings
+from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..llm import get_llm
 from ..prompts.templates import JUDGE_LENSES, JUDGE_PROMPT, JUDGE_SYSTEM
 from ..state import AuditState, Verdict
 from ..tools.filesystem import _safe_resolve
 
-# Fallback para LangGraph sem stream writer: tipado como Optional para o mypy.
-get_stream_writer: Optional[Callable[[], Callable[[Any], None]]]
-try:
-    from langgraph.config import get_stream_writer
-except ImportError:  # pragma: no cover
-    get_stream_writer = None
 
 _console = Console(stderr=True)
 
@@ -36,13 +31,6 @@ _CONTEXT_LINES = 40           # janela de linhas ao redor da linha citada
 _MAX_CONTEXT_CHARS = 8000     # teto do contexto passado ao juiz
 
 
-def _emit(data: dict) -> None:
-    if get_stream_writer is None:
-        return
-    try:
-        get_stream_writer()(data)
-    except Exception:
-        pass
 
 
 def _eligible(finding: dict, min_rank: int) -> bool:

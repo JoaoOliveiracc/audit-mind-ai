@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import AgentMiddleware
@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from rich.console import Console
 
 from ..config import get_settings
+from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..llm import get_llm
 from ..prompts.templates import (
     DIMENSION_GUIDANCE,
@@ -25,12 +26,6 @@ from ..state import AuditState, DimensionResult
 from ..tools.filesystem import make_project_tools
 from ._messages import content_text
 
-# Disponível apenas em versões recentes do LangGraph; Optional para o mypy.
-get_stream_writer: Optional[Callable[[], Callable[[Any], None]]]
-try:
-    from langgraph.config import get_stream_writer
-except ImportError:  # pragma: no cover
-    get_stream_writer = None
 
 _console = Console(stderr=True)
 
@@ -44,18 +39,6 @@ _TRANSCRIPT_CHARS = 60_000     # teto do histórico de resgate (mantém o mais r
 PARTIAL_PREFIX = "⚠️ Investigação parcial (orçamento de passos esgotado). "
 
 
-def _emit(data: dict) -> None:
-    """Emite um evento no stream 'custom' do LangGraph (para a API/SSE).
-
-    No-op seguro: fora de um run com stream_mode='custom' (ex.: CLI, testes),
-    a escrita é simplesmente descartada.
-    """
-    if get_stream_writer is None:
-        return
-    try:
-        get_stream_writer()(data)
-    except Exception:
-        pass
 
 
 def _final_report(messages: list) -> str:

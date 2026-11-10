@@ -10,6 +10,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader
 
 from ..state import Severity
+from ..scoring import severity_counts
 from .sarif import render_sarif
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -35,9 +36,7 @@ def _sort_findings(findings: list[dict]) -> list[dict]:
 def build_context(state: dict[str, Any], generated_at: str) -> dict[str, Any]:
     """Monta o contexto de template a partir do estado final do grafo."""
     findings = _sort_findings(state.get("findings", []))
-    counts = {s: 0 for s in SEVERITY_ORDER}
-    for f in findings:
-        counts[f.get("severity", "info")] = counts.get(f.get("severity", "info"), 0) + 1
+    counts = severity_counts(findings)
 
     profile = state.get("stack_profile", {})
     return {

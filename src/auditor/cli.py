@@ -14,6 +14,8 @@ from rich.table import Table
 
 from . import __version__
 from .config import get_settings
+from .events import NODE_ICONS, NODE_LABELS
+from .scoring import severity_counts
 from .graph import build_graph
 from .llm import LLMConfigError, get_llm
 from .logging_config import setup_logging
@@ -21,17 +23,6 @@ from .logging_config import setup_logging
 app = typer.Typer(add_completion=False, help="Audit Mind AI — auditoria de projetos com LangGraph.")
 console = Console()
 
-_NODE_LABELS = {
-    "discovery": "🔎 Descoberta e detecção de stack",
-    "plan_questions": "❓ Gerando perguntas de esclarecimento",
-    "clarify": "💬 Esclarecimentos",
-    "planning": "🗺️  Planejando dimensões de auditoria",
-    "audit": "🕵️  Executando investigadores",
-    "verify": "🔬 Verificando evidência dos achados",
-    "adversarial": "⚖️  Julgamento adversarial dos achados",
-    "synthesis": "🧠 Consolidando e pontuando",
-    "report": "📄 Gerando relatório",
-}
 
 
 @app.callback()
@@ -71,7 +62,7 @@ def _run(graph, inp, config):
         if "__interrupt__" in chunk:
             return chunk["__interrupt__"]
         for node in chunk:
-            label = _NODE_LABELS.get(node, node)
+            label = f"{NODE_ICONS.get(node, '•')} {NODE_LABELS.get(node, node)}"
             console.print(f"[green]✓[/green] {label}")
     return None
 
@@ -166,11 +157,9 @@ def _print_summary(state: dict) -> None:
     table = Table(title="Distribuição de Achados", show_header=True, header_style="bold")
     table.add_column("Severidade")
     table.add_column("Qtde", justify="right")
-    counts: dict[str, int] = {}
-    for f in findings:
-        counts[f.get("severity", "info")] = counts.get(f.get("severity", "info"), 0) + 1
+    counts = severity_counts(findings)
     for sev in ("critical", "high", "medium", "low", "info"):
-        table.add_row(sev, str(counts.get(sev, 0)))
+        table.add_row(sev, str(counts[sev]))
 
     console.print()
     console.print(
@@ -260,14 +249,14 @@ def serve(
     uvicorn.run("auditor.api.main:app", host=host, port=port, reload=reload)
 
 
-db_app = typer.Typer(help="Manutenção do banco local da API (~/.config/auditor).")
+db_app = typer.Typer(help="Manutenção do banco local da API (AUDITOR_DATA_DIR, padrão ~/.config/auditor).")
 app.add_typer(db_app, name="db")
 
 
 @db_app.command("compact")
 def db_compact(
     db: Optional[Path] = typer.Option(
-        None, "--db", help="Banco de checkpoints (padrão: ~/.config/auditor/audits-checkpoints.sqlite)."
+        None, "--db", help="Banco de checkpoints (padrão: $AUDITOR_DATA_DIR/audits-checkpoints.sqlite)."
     ),
 ):
     """Remove checkpoints de sub-agentes (legado) e compacta o banco. Rode com a API parada."""
@@ -275,12 +264,12 @@ def db_compact(
 
     try:
         from .api.retention import compact_checkpoints
-        from .api.store import CHECKPOINT_DB
+        from .api.store import checkpoint_db_path
     except ImportError:
         console.print("[red]Erro:[/red] dependências da API ausentes. Instale com: pip install -e \".[api]\"")
         raise typer.Exit(code=1)
 
-    target = db or CHECKPOINT_DB
+    target = db or checkpoint_db_path()
     if not target.is_file():
         console.print(f"Nada a compactar: {target} não existe.")
         return

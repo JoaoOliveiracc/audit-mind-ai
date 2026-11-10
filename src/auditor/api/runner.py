@@ -11,30 +11,18 @@ from typing import Any, Optional
 
 from langgraph.types import Command
 
+from ..events import NODE_LABELS
+from ..scoring import severity_counts
 from ..logging_config import get_logger
 from .store import AuditStore
 
 logger = get_logger("api.runner")
 
-NODE_LABELS = {
-    "discovery": "Descoberta e detecção de stack",
-    "plan_questions": "Gerando perguntas de esclarecimento",
-    "clarify": "Esclarecimentos",
-    "planning": "Planejando dimensões",
-    "audit": "Executando investigadores",
-    "verify": "Verificando evidência dos achados",
-    "adversarial": "Julgamento adversarial dos achados",
-    "synthesis": "Consolidando e pontuando",
-    "report": "Gerando relatório",
-}
 
 
 def _counts(findings: list[dict]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for f in findings:
-        sev = f.get("severity", "info")
-        counts[sev] = counts.get(sev, 0) + 1
-    return counts
+    """``counts`` da API: só severidades presentes (contrato existente)."""
+    return severity_counts(findings, include_zero=False)
 
 
 class AuditRunner:
