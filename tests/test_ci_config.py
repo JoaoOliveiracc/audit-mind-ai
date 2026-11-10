@@ -145,7 +145,10 @@ def test_cov01_coverage_step_reports_without_threshold():
 _PROVIDER_FLOORS = {"langchain-anthropic": "1.0", "langchain-openai": "1.0",
                     "langchain-google-genai": "3.0", "langchain-groq": "1.0",
                     "langchain-mistralai": "1.0", "langchain-ollama": "1.0",
-                    "langchain-deepseek": "1.0", "langchain-aws": "1.0"}
+                    "langchain-deepseek": "1.0", "langchain-aws": "1.0",
+                    # G47 — 1ª versão que DECLARA langchain-core>=1.0 (metadados do PyPI)
+                    "langchain-google-vertexai": "3.0", "langchain-cohere": "0.5",
+                    "langchain-together": "0.4", "langchain-fireworks": "1.0"}
 
 
 def _pyproject() -> str:
@@ -172,3 +175,19 @@ def test_dep03_single_source_no_requirements_txt():
     assert not (ROOT / "requirements.txt").exists()
     for rel in ("README.md", "Makefile", "docs/USAGE.md", ".github/workflows/ci.yml"):
         assert "-r requirements.txt" not in (ROOT / rel).read_text(encoding="utf-8"), rel
+
+
+
+# --- PROV-01/04: todo provedor anunciado tem caminho de instalação (provider-extras) ----
+def test_prov01_every_advertised_provider_is_installable():
+    from auditor.config import PROVIDER_PACKAGE
+
+    declared = set(re.findall(r'"(langchain-[a-z-]+)>=', _pyproject()))
+    missing = sorted(set(PROVIDER_PACKAGE.values()) - declared)
+    assert missing == []
+
+
+def test_prov04_readme_lists_new_extras():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    for extra in ("vertexai", "cohere", "together", "fireworks"):
+        assert f".[{extra}]" in readme, extra

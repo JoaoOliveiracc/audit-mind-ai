@@ -46,6 +46,11 @@ mistral = ["langchain-mistralai>=1.0"]
 ollama = ["langchain-ollama>=1.0"]
 deepseek = ["langchain-deepseek>=1.0"]
 aws = ["langchain-aws>=1.0"]
+# G47 — mínimo = 1ª versão que declara langchain-core>=1.0 (metadados do PyPI).
+vertexai = ["langchain-google-vertexai>=3.0"]
+cohere = ["langchain-cohere>=0.5"]
+together = ["langchain-together>=0.4"]
+fireworks = ["langchain-fireworks>=1.0"]
 # Camada de API/web (FastAPI + SSE + checkpointer persistente).
 api = [
     "fastapi>=0.115",

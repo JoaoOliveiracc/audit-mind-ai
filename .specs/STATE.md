@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/dependency-floors/` (G40) — verified PASS
+- **Feature**: `.specs/features/provider-extras/` (G47) — verified PASS
 - **Phase / Task**: complete
-- **Completed**: G25–G41, G44–G46
+- **Completed**: G25–G41, G44–G47 (all of the 2026-11-10 analysis except G42)
 - **In-progress**: none
-- **Next step**: user commits; backlog: G42 (SARIF download, ChatDock), G47 (extras for vertexai/cohere/together/fireworks); optional: tests read repo-root `.env`; coverage floor (measured 91%)
+- **Next step**: user commits; remaining: G42 (frontend SARIF download, ChatDock — needs product decisions); optional: tests read repo-root `.env`; coverage floor (measured 91%)
 - **Blockers**: none
-- **Uncommitted files**: dependency-floors (pyproject.toml, requirements.txt deletion, tests/test_ci_config.py, DOCUMENTACAO.md, .specs/)
+- **Uncommitted files**: provider-extras (pyproject.toml, tests/test_ci_config.py, README.md, docs/USAGE.md, DOCUMENTACAO.md, .specs/)
 - **Branch**: develop
