@@ -70,6 +70,7 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
 | `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
+| `AUDITOR_ALLOWED_HOSTS` | — | Extra `Host` values the API accepts besides `localhost`/`127.0.0.1`/`[::1]` (comma-separated). Only for deliberate exposure with `serve --allow-remote`. |
 | `AUDITOR_VERIFY_EVIDENCE` | `true` | Deterministic evidence check (drops unsubstantiated findings). |
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Skeptical LLM judge (costs tokens). |
 | `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Only judge findings at or above this severity. |
@@ -173,6 +174,8 @@ print(final["health_score"], final["report_html_path"])
 | `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
 | `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
 | `Recursion limit reached` / dimension with no findings and a "need more steps" summary | project too large for the step budget | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| API answers `400 Host não permitido.` | request `Host` is not loopback (e.g. a custom hostname or LAN IP) | Use `localhost`/`127.0.0.1`, or add the host to `AUDITOR_ALLOWED_HOSTS`. |
+| Audit shows `interrompida` in the history | the API process stopped while it ran (restart, `--reload`) | Click **Retomar** (`POST /audits/{id}/resume`); the interrupted step re-runs. |
 | `~/.config/auditor/audits-checkpoints.sqlite` is very large | legacy audits (before the G29 fix) stored every sub-agent step | Stop the API and run `auditor db compact`; delete unwanted audits from the web history (`DELETE /audits/{id}`). |
 | Slow/expensive audit | too many dimensions/files | Reduce `AUDITOR_MAX_FILES` or use `--goal` to narrow the focus. |
 | Few findings | insufficient context | Answer the clarification questions in detail. |

@@ -49,7 +49,9 @@ code on disk (and optionally by an adversarial LLM judge) before the report.
 ```
 
 Entry points: **CLI** (`auditor audit`, `MemorySaver`) and **API** (`auditor serve`,
-FastAPI + SSE, `SqliteSaver`). The Vite/React frontend in `frontend/` consumes the API.
+FastAPI + SSE, `SqliteSaver`). The API only answers loopback `Host`s (`api/security.py`, AD-002);
+on startup it marks orphaned audits `interrupted`, and `AuditRunner(resume=True)` continues them
+from the last checkpoint (pending interrupt → re-ask; pending nodes → `stream(None)`). The Vite/React frontend in `frontend/` consumes the API.
 
 ## 2. Components
 

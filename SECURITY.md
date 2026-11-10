@@ -53,7 +53,9 @@ The project being audited is **untrusted input**:
 - **Root scoping:** every tool resolves symlinks and rejects paths outside the root;
   `search_code` also rejects absolute globs and globs with a `..` component (G25/G26, fixed).
 - **Local API:** binds to `127.0.0.1`, no authentication, CORS limited to the Vite dev origin.
-  ⚠️ No `Host` header validation yet (DNS-rebinding exposure, G27). Do not bind it to `0.0.0.0`.
+  Requests whose `Host` is not loopback (`localhost`, `127.0.0.1`, `[::1]`) get `400` — this blocks
+  DNS rebinding (G27). `auditor serve` refuses a non-local `--host` unless `--allow-remote` is given;
+  even then, remote clients are only accepted for hosts listed in `AUDITOR_ALLOWED_HOSTS`.
 - **Local data at rest:** `~/.config/auditor/*.sqlite` stores audit state, including excerpts of
   audited files. Nothing expires automatically: delete audits from the web history (or
   `DELETE /audits/{id}`), which removes metadata, checkpoints and the `.md/.html/.sarif` reports.

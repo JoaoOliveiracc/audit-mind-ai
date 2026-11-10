@@ -12,7 +12,7 @@
 
 ## v0.1.x — Hardening (from the 2026-11-10 analysis)
 - [x] Enforce root scoping in `search_code` (glob `..`, symlinks) and fix ancestor `ignore_dirs` matching (G25/G26/G30).
-- [ ] Reconcile/resume orphaned audits after API restart; `Host` validation against DNS rebinding (G31/G27).
+- [x] Reconcile/resume orphaned audits after API restart; `Host` validation against DNS rebinding (G31/G27).
 - [ ] Investigator step budget with forced final report; text extraction in synthesis (G32/G33).
 - [ ] CI (lint, tests, type-check, frontend build) and mypy clean (G37/G38).
 

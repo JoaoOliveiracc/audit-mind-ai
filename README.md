@@ -111,7 +111,7 @@ auditor providers   # list all providers, packages and credentials
 | Command | Description |
 | --- | --- |
 | `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Run the audit and emit the report. |
-| `auditor serve [--host H] [--port N] [--reload]` | Start the FastAPI backend (for the web frontend). |
+| `auditor serve [--host H] [--port N] [--reload] [--allow-remote]` | Start the FastAPI backend (for the web frontend). Loopback only unless `--allow-remote`. |
 | `auditor providers` | List supported LLM providers. |
 | `auditor db compact [--db PATH]` | Compact the API checkpoint DB (drops legacy sub-agent checkpoints + VACUUM). Run with the API stopped. |
 | `auditor version` | Show the version. |
@@ -124,7 +124,8 @@ auditor serve            # http://127.0.0.1:8020 — interactive docs at /docs
 ```
 
 Endpoints: `POST /audits` (start), `GET /audits` / `GET /audits/{id}` (list/status),
-`DELETE /audits/{id}` (removes metadata, checkpoints and reports),
+`DELETE /audits/{id}` (removes metadata, checkpoints and reports), `POST /audits/{id}/resume`
+(continues an audit interrupted by an API restart),
 `GET /audits/{id}/stream` (SSE for progress and clarifications), `POST /audits/{id}/answers`
 (human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md|sarif`,
 `GET /fs/browse` (folder picker), `GET /providers`. State persisted via `SqliteSaver`.
