@@ -100,6 +100,12 @@
     <div class="summary">{{ d.summary }}</div>
   {% endfor %}
 
+  <h2>Dependências e Runtimes</h2>
+  <p><strong>{{ scan_status.headline }}.</strong></p>
+  {% if scan_status.reasons %}
+  <ul>{% for r in scan_status.reasons %}<li>{{ r }}</li>{% endfor %}</ul>
+  {% endif %}
+
   {% if verification and verification.enabled %}
   <h2>Verificação de Evidência</h2>
   <p class="meta">Cada achado foi conferido no código-fonte (arquivo, linha e trecho de evidência).</p>

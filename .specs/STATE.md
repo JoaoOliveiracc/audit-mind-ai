@@ -18,13 +18,19 @@
 - **Date**: 2026-11-10
 - **Status**: active
 
+### AD-003
+- **Decision**: Outbound network calls are opt-in per run and limited to a fixed allowlist of HTTPS hosts (today: `api.osv.dev`, `endoflife.date`); only public package coordinates (ecosystem, name, version) may leave the process — never code, file paths or private package names.
+- **Reason**: The auditor handles untrusted, often proprietary code; users running local LLMs expect zero egress.
+- **Trade-off**: Vulnerability scanning is off unless the user enables it.
+- **Scope**: `src/auditor/vulnscan/*`, any future external integration.
+- **Date**: 2026-11-10
+- **Status**: active
+
 ## Handoff
 
-- **Feature**: `.specs/features/report-chat-and-sarif/` (G42) — verified PASS after fix loop 1
-- **Phase / Task**: complete — **all gaps of the 2026-11-10 analysis (G25–G47) resolved**
-- **Completed**: G25–G47 across 13 features in `.specs/features/`
-- **In-progress**: none
-- **Next step**: user commits + pushes; optional follow-ups: tests still read the repo-root `.env` (load_dotenv from cwd); choose a coverage floor (measured 91%); real smoke run against Gemini 3 (wrap-up notice as HumanMessage, medium confidence); `_BudgetMiddleware` is sync-only (needs `awrap_model_call` if moving to `ainvoke`)
+- **Feature**: `.specs/features/vuln-scan/` (G48) — **Done** (Verifier PASS after fix loop 1)
+- **Completed**: T1–T12, three `/code-review` rounds, fix loop 1
+- **Open user decisions**: (a) `.lock` readable by investigators even with the scan off (LOCK-05) vs. excluding lockfiles from `search_code` unless the glob targets them; (b) cap/aggregate the dependency penalty in the health score
+- **Next step**: user commits (git commands handed over); then decide (a)/(b)
 - **Blockers**: none
-- **Uncommitted files**: report-chat-and-sarif (chat.py, templates, schemas, routes, frontend ChatDock/ResultsPanel/client/App + tests, tests/test_chat.py, tests/test_e2e.py, tests/fake_llm.py, docs, .specs/)
-- **Branch**: develop
+- **Branch**: feat/vuln-scan

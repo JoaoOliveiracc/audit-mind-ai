@@ -28,7 +28,8 @@ See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
 - [ ] Intelligent summarization/selection of files in very large projects (map-reduce).
 
 ## v0.3 — Analysis depth
-- [ ] Optional integration with external scanners (Semgrep, Trivy, gitleaks, pip-audit/npm-audit).
+- [x] Vulnerable dependencies & runtimes via OSV.dev / endoflife.date (opt-in, deterministic) — delivered (G48).
+- [ ] Optional integration with external scanners (Semgrep, Trivy, gitleaks).
 - [ ] Reconciliation: scanner findings + LLM findings, with deduplication.
 - [x] Deterministic evidence verification (`verify` node) — delivered.
 - [x] Adversarial verification of findings (skeptical LLM judge, `adversarial` node) — delivered (opt-in).

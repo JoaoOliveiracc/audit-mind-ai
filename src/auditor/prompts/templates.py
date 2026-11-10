@@ -245,6 +245,12 @@ Decida: o achado é um problema real e válido? Responda com o veredito estrutur
 """
 
 
+# Aviso aos investigadores quando a varredura determinística está ligada (G48, DUP-01).
+VULN_SCAN_NOTE = (
+    "Vulnerabilidades conhecidas (CVEs) de dependências já são verificadas por uma varredura "
+    "determinística — não as reporte; foque em uso inseguro das dependências no código."
+)
+
 # --------------------------------------------------------------------------- #
 # Chat sobre o relatório (G42)                                                 #
 # --------------------------------------------------------------------------- #

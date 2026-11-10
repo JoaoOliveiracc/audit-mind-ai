@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 8,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "ac_gap::when a spec says every status variant appends a suffix test the suffix on each variant including the error incomplete branch",
+      "text": "When a spec says every status variant appends a suffix, test the suffix on each variant, including the error/incomplete branch",
+      "signal": "ac_gap",
+      "scope": "report",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "RPT-01 status.py:38 (report)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-002",
+      "key": "surviving_mutant::when grouping records from several sources test conflicting flags across sources one private one public one dev one prod for each aggregated flag",
+      "text": "When grouping records from several sources, test conflicting flags across sources (one private one public, one dev one prod) for each aggregated flag",
+      "signal": "surviving_mutant",
+      "scope": "vulnscan",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M09 scanner.py:153 (vulnscan)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-003",
+      "key": "surviving_mutant::assert every counter in a stats dict from the producer itself not only from the renderer that consumes it",
+      "text": "Assert every counter in a stats dict from the producer itself, not only from the renderer that consumes it",
+      "signal": "surviving_mutant",
+      "scope": "vulnscan",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M24 scanner.py:177 (vulnscan)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-004",
+      "key": "surviving_mutant::test caps and limits at exactly the limit not only above it",
+      "text": "Test caps and limits at exactly the limit, not only above it",
+      "signal": "surviving_mutant",
+      "scope": "vulnscan",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M10 scanner.py:155 (vulnscan)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-005",
+      "key": "surviving_mutant::parametrize privacy tests over every configured env var or source in the allowlist not a subset",
+      "text": "Parametrize privacy tests over every configured env var or source in the allowlist, not a subset",
+      "signal": "surviving_mutant",
+      "scope": "vulnscan",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M25 python.py:218 (vulnscan)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-006",
+      "key": "surviving_mutant::when a component receives a server loaded default via props test the parent wiring with a non default server value",
+      "text": "When a component receives a server-loaded default via props, test the parent wiring with a non-default server value",
+      "signal": "surviving_mutant",
+      "scope": "frontend",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "M30 App.tsx:47 (frontend)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    },
+    {
+      "id": "L-007",
+      "key": "spec_precision_gap::when the spec quotes user facing wording assert that wording or update the spec to the implemented text",
+      "text": "When the spec quotes user-facing wording, assert that wording or update the spec to the implemented text",
+      "signal": "spec_precision_gap",
+      "scope": "vulnscan",
+      "status": "candidate",
+      "features": [
+        "vuln-scan"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "RT-03 runtime.py:197 (vulnscan)"
+      ],
+      "created": "2026-11-10T21:51:43Z",
+      "last_seen": "2026-11-10T21:51:43Z"
+    }
+  ]
+}

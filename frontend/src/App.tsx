@@ -5,6 +5,7 @@ import {
   deleteAudit,
   getAudit,
   getFindings,
+  getDefaults,
   getProviders,
   listAudits,
   resumeAudit,
@@ -29,6 +30,7 @@ function countBySeverity(findings: Finding[]): Record<string, number> {
 export default function App() {
   const [state, dispatch] = useReducer(auditReducer, initialState)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
+  const [vulnScanDefault, setVulnScanDefault] = useState(false)
   const [history, setHistory] = useState<AuditSummary[]>([])
   const [startError, setStartError] = useState<string | null>(null)
   const [auditId, setAuditId] = useState<string | null>(null)
@@ -41,6 +43,9 @@ export default function App() {
 
   useEffect(() => {
     getProviders().then(setProviders).catch(() => setProviders([]))
+    getDefaults()
+      .then((d) => setVulnScanDefault(d.vuln_scan))
+      .catch(() => setVulnScanDefault(false))
     refreshHistory()
     return () => streamRef.current?.close()
   }, [])
@@ -201,7 +206,7 @@ export default function App() {
       <main className="flex-1 space-y-6">
         {state.status === 'idle' && (
           <>
-            <StartForm providers={providers} busy={false} onStart={handleStart} />
+            <StartForm providers={providers} busy={false} onStart={handleStart} vulnScanDefault={vulnScanDefault} />
             {startError && (
               <p className="card break-words text-sm text-sev-critical" role="alert">
                 {startError}

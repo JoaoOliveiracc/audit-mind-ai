@@ -15,6 +15,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 - **Human-in-the-loop** — the agent asks clarifying questions before auditing, using LangGraph's `interrupt`.
 - **Per-dimension ReAct investigators** — each dimension is audited by a sub-agent that explores the code with tools (read file, list directory, search patterns). Investigators run **in parallel** (configurable via `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`).
 - **Anti-hallucination** — every finding's evidence is checked on disk (deterministic, no LLM); unsubstantiated findings are dropped. An optional **adversarial LLM judge** then tries to refute the remaining findings before the report.
+- **Vulnerable dependencies & runtimes (opt-in)** — reads lockfiles (npm/yarn/pnpm, `composer.lock`, Poetry/uv/Pipfile/`requirements*.txt`) and queries **OSV.dev** for known advisories (CVE/GHSA, fixed version), and checks the declared Node/PHP/Python runtime against **endoflife.date** (EOL / behind latest patch). Deterministic, zero tokens; only public package names and versions leave the machine (`--vuln-scan` / `AUDITOR_VULN_SCAN`).
 - **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
 - **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
 - **SARIF export** — findings also emitted as SARIF 2.1.0, ready to upload to **GitHub Code Scanning** (inline PR alerts) or any SARIF-aware CI.
@@ -24,7 +25,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 
 ```
 START → discovery → plan_questions → clarify ─(interrupt)→ planning
-      → audit(⇉ per-dimension ReAct investigators)
+      → audit(⇉ per-dimension ReAct investigators) → dependency_scan(OSV.dev/endoflife.date, opt-in)
       → verify(deterministic evidence check) → adversarial(skeptical LLM judge, optional)
       → synthesis → report → END
 ```
@@ -114,7 +115,7 @@ auditor providers   # list all providers, packages and credentials
 
 | Command | Description |
 | --- | --- |
-| `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Run the audit and emit the report. |
+| `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M] [--vuln-scan/--no-vuln-scan]` | Run the audit and emit the report. |
 | `auditor serve [--host H] [--port N] [--reload] [--allow-remote]` | Start the FastAPI backend (for the web frontend). Loopback only unless `--allow-remote`. |
 | `auditor providers` | List supported LLM providers. |
 | `auditor db compact [--db PATH]` | Compact the API checkpoint DB (drops legacy sub-agent checkpoints + VACUUM). Run with the API stopped. |
@@ -132,7 +133,7 @@ Endpoints: `POST /audits` (start), `GET /audits` / `GET /audits/{id}` (list/stat
 (questions about a completed audit's report — no code access), `POST /audits/{id}/resume`
 (continues an audit interrupted by an API restart),
 `GET /audits/{id}/stream` (SSE for progress and clarifications), `POST /audits/{id}/answers`
-(human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md|sarif`,
+(human-in-the-loop), `GET /audits/{id}/findings` (JSON, incl. the dependency-scan status), `GET /defaults` (server defaults for the web form), `GET /audits/{id}/report?format=html|md|sarif`,
 `GET /fs/browse` (folder picker), `GET /providers`. State persisted via `SqliteSaver`.
 Full design in [`docs/FRONTEND_SPEC.md`](docs/FRONTEND_SPEC.md).
 

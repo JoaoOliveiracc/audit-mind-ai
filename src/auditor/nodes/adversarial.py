@@ -19,6 +19,7 @@ from ..config import get_settings
 from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..llm import get_llm
 from ..prompts.templates import JUDGE_LENSES, JUDGE_PROMPT, JUDGE_SYSTEM
+from ..vulnscan.models import is_deterministic
 from ..state import AuditState, Verdict
 from ..tools.filesystem import _safe_resolve
 
@@ -35,8 +36,8 @@ _MAX_CONTEXT_CHARS = 8000     # teto do contexto passado ao juiz
 
 def _eligible(finding: dict, min_rank: int) -> bool:
     """Julga apenas achados com arquivo citado e severidade >= limiar."""
-    if not finding.get("file"):
-        return False
+    if not finding.get("file") or is_deterministic(finding):
+        return False   # sem arquivo, ou achado determinístico/factual (G48): não vai ao juiz
     rank = _SEVERITY_RANK.get(finding.get("severity", "info"), 4)
     return rank <= min_rank
 

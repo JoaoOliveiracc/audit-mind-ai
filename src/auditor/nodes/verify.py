@@ -19,6 +19,7 @@ from ..config import get_settings
 from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..state import AuditState
 from ..tools.filesystem import _safe_resolve
+from ..vulnscan.models import MAX_LOCKFILE_BYTES, is_deterministic
 
 
 _console = Console(stderr=True)
@@ -28,20 +29,18 @@ _LINENO = re.compile(r"^\s*\d+\|\s?", re.MULTILINE)  # prefixo "  12| " do read_
 _MIN_LINE_LEN = 4  # ignora linhas de evidência triviais ("{", "})", etc.
 
 
-
-
 def _normalize(text: str) -> str:
     """Remove numeração de linha e normaliza espaços em branco (preserva o caso)."""
     text = _LINENO.sub("", text)
     return _WS.sub(" ", text).strip()
 
 
-def _evidence_matches(evidence: str, content: str) -> bool:
-    """Heurística tolerante: a evidência aparece no arquivo?"""
+def _evidence_matches(evidence: str, content: str, norm: str | None = None) -> bool:
+    """Heurística tolerante: a evidência aparece no arquivo? (``norm``: conteúdo já normalizado)"""
     ev = _normalize(evidence)
     if not ev:
         return False
-    norm = _normalize(content)
+    norm = _normalize(content) if norm is None else norm
     if ev in norm:
         return True
 
@@ -62,7 +61,8 @@ def _evidence_matches(evidence: str, content: str) -> bool:
     return False
 
 
-def _verify_finding(finding: dict, root: Path, settings) -> tuple[str, str]:
+def _verify_finding(finding: dict, root: Path, settings,
+                    cache: dict[Path, tuple[str, str]] | None = None) -> tuple[str, str]:
     """Retorna (status, nota) onde status ∈ {verified, unverified, rejected}."""
     file = finding.get("file")
     evidence = finding.get("evidence")
@@ -79,9 +79,17 @@ def _verify_finding(finding: dict, root: Path, settings) -> tuple[str, str]:
         return "rejected", f"arquivo citado não existe: {file}"
 
     try:
-        if target.stat().st_size > settings.max_file_bytes:
+        # Achados determinísticos (G48) citam lockfiles, que costumam passar de max_file_bytes.
+        limit = MAX_LOCKFILE_BYTES if is_deterministic(finding) else settings.max_file_bytes
+        if target.stat().st_size > limit:
             return "unverified", "arquivo grande demais para verificar"
-        content = target.read_text(encoding="utf-8", errors="ignore")
+        if cache is not None and target in cache:      # lockfile citado por vários achados
+            content, normalized = cache[target]
+        else:
+            content = target.read_text(encoding="utf-8", errors="ignore")
+            normalized = _normalize(content)
+            if cache is not None:
+                cache[target] = (content, normalized)
     except OSError as exc:
         return "unverified", f"não foi possível ler o arquivo: {exc}"
 
@@ -89,7 +97,7 @@ def _verify_finding(finding: dict, root: Path, settings) -> tuple[str, str]:
     line_ok = line is None or (isinstance(line, int) and 1 <= line <= total_lines)
 
     if evidence and str(evidence).strip():
-        if _evidence_matches(str(evidence), content):
+        if _evidence_matches(str(evidence), content, normalized):
             note = "evidência localizada no arquivo"
             return "verified", note if line_ok else note + " (linha fora do intervalo)"
         return "rejected", "evidência não encontrada no arquivo citado (possível alucinação)"
@@ -115,8 +123,9 @@ def verify_node(state: AuditState) -> dict:
     stats: dict[str, Any] = {"enabled": True, "verified": 0, "unverified": 0, "rejected": 0,
              "rejected_titles": []}
 
+    cache: dict[Path, tuple[str, str]] = {}
     for finding in findings:
-        status, note = _verify_finding(finding, root, settings)
+        status, note = _verify_finding(finding, root, settings, cache)
         finding["verification_note"] = note
         if status == "rejected":
             stats["rejected"] += 1

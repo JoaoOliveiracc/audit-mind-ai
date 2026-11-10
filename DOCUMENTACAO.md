@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G47**; G25–G47 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G48**; G25–G48 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -177,6 +177,7 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Juiz adversarial (custa tokens; §9). |
 | `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Só julga achados ≥ este limiar. |
 | `AUDITOR_ADVERSARIAL_VOTES` | `1` | Nº de vereditos por achado (1–3, lentes distintas). |
+| `AUDITOR_VULN_SCAN` | `false` | Varredura de dependências/runtimes vulneráveis (G48): envia **só** nomes e versões de pacotes públicos ao `api.osv.dev` e nomes de runtime ao `endoflife.date`. `--vuln-scan/--no-vuln-scan` (CLI) e `vuln_scan` (API/web) têm precedência. |
 | `AUDITOR_DATA_DIR` | `~/.config/auditor` | Bancos SQLite da API (metadados + checkpoints); criado no primeiro uso, nunca no import. |
 
 A credencial de cada provider é lida **diretamente do ambiente pela SDK correspondente**
@@ -198,6 +199,9 @@ auditor audit /caminho/do/projeto --goal "Preparando para produção, foco em se
 
 # Não-interativo (CI/pipeline): pula os esclarecimentos
 auditor audit /caminho/do/projeto --no-questions
+
+# Dependências/runtimes vulneráveis (OSV.dev + endoflife.date; envia só nomes/versões públicos)
+auditor audit /caminho/do/projeto --vuln-scan
 
 # Trocar provider/modelo em runtime (sobrescreve o .env)
 auditor audit /proj --provider ollama --model qwen2.5-coder:14b   # 100% local
@@ -296,6 +300,7 @@ make ci            # tudo que o CI roda (lint, tipos, pytest, npm ci, vitest, ts
 | `clarify_node` | `clarify.py` | `interrupt` para human-in-the-loop; coleta `user_context`. Pulado se `skip_questions`. |
 | `planning_node` | `planning.py` | LLM seleciona as dimensões aplicáveis (`AuditPlan`); fallback p/ dimensões padrão. |
 | `audit_node` | `audit.py` | Um `create_agent` por dimensão (com tools read-only), rodando **em paralelo** (thread pool, `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`); agrega `Finding`s na ordem do plano. Emite eventos SSE pela thread principal. |
+| `dependency_scan_node` | `dependency_scan.py` | Varredura **determinística** e opt-in (G48): lockfiles → OSV.dev, runtime declarado → endoflife.date (`auditor/vulnscan/`); pacotes privados nunca consultados; achados `source=osv/endoflife` citam a linha do lockfile; falhas viram `errors` nas estatísticas. |
 | `verify_node` | `verify.py` | Verificação **determinística** de evidência no disco (sem LLM); descarta achados alucinados. |
 | `adversarial_node` | `adversarial.py` | Juiz LLM cético (opcional) refuta achados elegíveis; votação por lentes. |
 | `synthesis_node` | `synthesis.py` | `compute_health_score` (0–100) + resumo executivo + contagem por severidade. |
@@ -366,12 +371,13 @@ health_score = max(0, 100 - min(100, penalty))
    *resgate* (sem tools) escreve o relatório a partir do histórico condensado e a dimensão é
    marcada como parcial. Os investigadores rodam **em paralelo** (thread pool)
    e os achados são agregados na ordem do plano.
-6. **verify** — cada achado é conferido no disco (arquivo existe? evidência aparece? linha no
+6. **dependency_scan** *(opt-in)* — sem LLM: lê os lockfiles, consulta o OSV.dev (só pacotes públicos) e o endoflife.date, e acrescenta um achado por `pacote@versão` vulnerável e por runtime EOL/desatualizado; o relatório sempre declara o status da varredura.
+7. **verify** — cada achado é conferido no disco (arquivo existe? evidência aparece? linha no
    intervalo?). Não-substanciados são **descartados**; sem-evidência têm confiança rebaixada.
-7. **adversarial** *(opcional)* — juiz LLM cético tenta refutar cada achado elegível; refutados
+8. **adversarial** *(opcional)* — juiz LLM cético tenta refutar cada achado elegível; refutados
    são descartados, incertos rebaixados.
-8. **synthesis** — pontuação de saúde (0–100), contagem por severidade, resumo executivo.
-9. **report** — grava `auditoria-<timestamp>-<id8>.md`, `.html` e `.sarif` (id da auditoria via `thread_id`).
+9. **synthesis** — pontuação de saúde (0–100), contagem por severidade, resumo executivo.
+10. **report** — grava `auditoria-<timestamp>-<id8>.md`, `.html` e `.sarif` (id da auditoria via `thread_id`).
 
 O checkpointer permite pausar em `clarify` e retomar (`Command(resume=answers)`), inclusive
 entre processos no modo API (SQLite).
@@ -490,6 +496,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G46~~ ✅ | Clicar na **linha** de uma auditoria `interrupted` no histórico tenta reconectar o SSE (404 → "Conexão perdida") em vez de orientar a usar **Retomar**. | 🟢 Baixo | Análise (`App.handleOpenAudit`). | ✅ **Resolvido** — abrir `interrupted` orienta a usar **Retomar**; abrir `error` mostra o erro gravado (sem stream); **Retomar** desabilitado ("Retomando…") em voo. |
 | ~~G47~~ ✅ | `google_vertexai`, `cohere`, `together` e `fireworks` aparecem em `config.PROVIDER_PACKAGE` (e no `auditor providers`), mas não têm extra no `pyproject` — sem caminho de instalação nem mínimo de versão. | 🟢 Baixo | Análise (Verifier de `dependency-floors`). | ✅ **Resolvido** — extras `vertexai` (`>=3.0`), `cohere` (`>=0.5`), `together` (`>=0.4`) e `fireworks` (`>=1.0`): 1ª versão que **declara** `langchain-core>=1.0` nos metadados do PyPI. Teste garante que todo provedor anunciado tem caminho de instalação. Spec: `.specs/features/provider-extras/`. |
 | ~~G42~~ ✅ | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ **Resolvido** — botão "Baixar SARIF"; ChatDock funcional sobre `POST /audits/{id}/chat` (só o relatório salvo, delimitado como dado não confiável; histórico só na tela; limites de pergunta/histórico/contexto). Spec: `.specs/features/report-chat-and-sarif/`. Os demais itens da linha já tinham sido resolvidos: auditoria zumbi no histórico (G31/G46) e o comentário do `vite.config.ts` (na análise inicial). |
+| ~~G48~~ ✅ | O agente não consultava nenhuma base de vulnerabilidades (o LLM julgava "dependências vulneráveis" de memória) e `.lock` era tratado como binário — `composer.lock`, `yarn.lock`, `poetry.lock`, `uv.lock` nunca eram lidos; runtime sem suporte não era detectado. | 🟠 Alto | Análise. | ✅ **Resolvido** — varredura determinística opt-in (`AUDITOR_VULN_SCAN`, `--vuln-scan`, `vuln_scan` na API/web): lockfiles npm/yarn/pnpm, Composer e Python → OSV.dev (um achado por pacote@versão, CVE/GHSA, versão corrigida; dev → info); runtime Node/PHP/Python → endoflife.date (EOL / abaixo do último patch); privados nunca consultados; status explícito no relatório; `.lock` legível. Decisão AD-003. Spec: `.specs/features/vuln-scan/`. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
 (disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → ~~(5) G37+G38+G36 (higiene/CI)~~ ✅ → restante.
@@ -516,8 +523,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — concluídas (G25–G47 — todos resolvidos)
-G25–G47 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — concluídas (G25–G48 — todos resolvidos)
+G25–G48 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

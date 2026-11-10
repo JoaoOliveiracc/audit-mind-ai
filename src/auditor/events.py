@@ -17,6 +17,7 @@ NODE_LABELS: dict[str, str] = {
     "clarify": "Esclarecimentos",
     "planning": "Planejando dimensões",
     "audit": "Executando investigadores",
+    "dependency_scan": "Verificando dependências vulneráveis",
     "verify": "Verificando evidência dos achados",
     "adversarial": "Julgamento adversarial dos achados",
     "synthesis": "Consolidando e pontuando",
@@ -26,7 +27,7 @@ NODE_LABELS: dict[str, str] = {
 # Ícones da CLI (mesmas chaves de NODE_LABELS).
 NODE_ICONS: dict[str, str] = {
     "discovery": "🔎", "plan_questions": "❓", "clarify": "💬", "planning": "🗺️ ",
-    "audit": "🕵️ ", "verify": "🔬", "adversarial": "⚖️ ", "synthesis": "🧠", "report": "📄",
+    "audit": "🕵️ ", "dependency_scan": "📦", "verify": "🔬", "adversarial": "⚖️ ", "synthesis": "🧠", "report": "📄",
 }
 
 

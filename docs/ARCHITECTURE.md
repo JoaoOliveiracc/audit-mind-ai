@@ -29,6 +29,10 @@ code on disk (and optionally by an adversarial LLM judge) before the report.
                     │    audit     │   1) create_agent(tools, budget middleware) → text report
                     └──────┬───────┘   2) with_structured_output → DimensionResult
                            ▼
+                    ┌───────────────┐
+                    │dependency_scan│ lockfiles → OSV.dev, runtime → endoflife.date (opt-in, no LLM)
+                    └──────┬────────┘
+                           ▼
                     ┌──────────────┐
                     │    verify    │  deterministic evidence check on disk (no LLM)
                     └──────┬───────┘
@@ -136,6 +140,16 @@ Each dimension is audited in two decoupled phases:
   reads the real code window and tries to refute them (1–3 lenses, majority vote). Refuted →
   dropped; uncertain → confidence lowered.
 
+## 6.1 Dependency scan (G48, opt-in)
+
+`auditor.vulnscan`: lockfile parsers (Strategy + registry), runtime detectors, `OSVClient` /
+`EndOfLifeClient` gateways (fixed HTTPS hosts, 15 s timeout, 5 MB streaming cap, failures recorded
+— never raised) and `scanner.scan` (facade). The `dependency_scan` node runs after `audit` (which
+overwrites `findings`) and appends deterministic findings (`source="osv"|"endoflife"`) citing the
+exact lockfile line, so `verify` confirms them; `adversarial` skips them (`is_deterministic`).
+Disabled → no HTTP client is created (AD-003). Stats go to `state["dependency_scan"]`, the SSE
+event `dependency_scan` and the report's explicit status line.
+
 ## 7. Tool safety
 
 `_safe_resolve` resolves paths (following symlinks) under the root and rejects any target
@@ -163,6 +177,7 @@ project_path (+ provider, model, user_goal)
   → user_context                       (clarify)
   → plan.dimensions + focus_notes      (planning)
   → findings[] + dimension_summaries   (audit)
+  → findings[] (+osv/endoflife) + dependency_scan   (dependency_scan, opt-in)
   → findings[] (filtered) + verification   (verify)
   → findings[] (filtered) + adversarial    (adversarial)
   → health_score + executive_summary   (synthesis)
