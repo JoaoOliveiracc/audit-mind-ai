@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 
 import type { CreateAuditRequest, ProviderInfo } from '../types'
 import FolderPicker from './FolderPicker'
@@ -7,15 +7,23 @@ interface Props {
   providers: ProviderInfo[]
   busy: boolean
   onStart: (req: CreateAuditRequest) => void
+  /** Padrão do servidor (``AUDITOR_VULN_SCAN``); chega depois da montagem. */
+  vulnScanDefault?: boolean
 }
 
 /** Formulário inicial: caminho do projeto, objetivo e provedor/modelo. */
-export default function StartForm({ providers, busy, onStart }: Props) {
+export default function StartForm({ providers, busy, onStart, vulnScanDefault = false }: Props) {
   const [path, setPath] = useState('')
   const [goal, setGoal] = useState('')
   const [provider, setProvider] = useState('')
   const [model, setModel] = useState('')
   const [skipQuestions, setSkipQuestions] = useState(false)
+  const [vulnScan, setVulnScan] = useState(vulnScanDefault)
+  const [vulnScanTouched, setVulnScanTouched] = useState(false)
+  // O padrão do servidor só vale enquanto o usuário não escolheu (a escolha explícita vence).
+  useEffect(() => {
+    if (!vulnScanTouched) setVulnScan(vulnScanDefault)
+  }, [vulnScanDefault, vulnScanTouched])
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -34,6 +42,7 @@ export default function StartForm({ providers, busy, onStart }: Props) {
       provider: provider || undefined,
       model: model || undefined,
       interactive: !skipQuestions,
+      vuln_scan: vulnScan,
     })
   }
 
@@ -92,6 +101,19 @@ export default function StartForm({ providers, busy, onStart }: Props) {
           onChange={(e) => setGoal(e.target.value)}
         />
       </div>
+
+      <label className="flex items-start gap-2 text-sm text-[color:var(--dim)]">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={vulnScan}
+          onChange={(e) => {
+            setVulnScanTouched(true)
+            setVulnScan(e.target.checked)
+          }}
+        />
+        <span>Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)</span>
+      </label>
 
       <button
         type="button"

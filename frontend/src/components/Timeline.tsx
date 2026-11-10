@@ -14,7 +14,7 @@ const STEPS = [
   { key: 'discovery', label: '01 · Descoberta', nodes: ['discovery'] },
   { key: 'clarify', label: '02 · Esclarecimentos', nodes: ['plan_questions', 'clarify'] },
   { key: 'planning', label: '03 · Plano', nodes: ['planning'] },
-  { key: 'audit', label: '04 · Investigação', nodes: ['audit'] },
+  { key: 'audit', label: '04 · Investigação', nodes: ['audit', 'dependency_scan'] }, // G48: varredura de deps logo após o audit
   { key: 'verify', label: '05 · Verificação de evidência', nodes: ['verify'] },
   { key: 'adversarial', label: '06 · Contraprova adversarial', nodes: ['adversarial'] },
   { key: 'synthesis', label: '07 · Consolidação', nodes: ['synthesis'] },
@@ -99,7 +99,7 @@ function Entry({
         ? 'border-[color:var(--stamp)] bg-[color:var(--stamp)] animate-pulse'
         : 'border-[color:var(--line)] bg-[color:var(--ink)]'
   return (
-    <li className={`relative pl-6 ${status === 'pending' ? 'opacity-40' : ''}`}>
+    <li data-status={status} className={`relative pl-6 ${status === 'pending' ? 'opacity-40' : ''}`}>
       <span aria-hidden className={`absolute left-0 top-1.5 h-2 w-2 rounded-full border ${marker}`} />
       <p className="eyebrow mb-1.5">{label}</p>
       {status !== 'pending' && children ? <div className="card">{children}</div> : null}
@@ -113,7 +113,10 @@ export default function Timeline({ state, onClarifySubmit }: Props) {
 
   const stepStatus = (i: number): StepStatus => {
     const step = STEPS[i]
-    if (step.nodes.every((n) => done.has(n))) return 'done'
+    // Concluída também se uma etapa posterior já rodou (ex.: retomada de auditoria anterior ao
+    // G48, que nunca emite `dependency_scan`).
+    if (step.nodes.every((n) => done.has(n)) || STEPS.slice(i + 1).some((s) => s.nodes.some((n) => done.has(n))))
+      return 'done'
     const prevDone = i === 0 || STEPS[i - 1].nodes.every((n) => done.has(n))
     const started =
       prevDone ||

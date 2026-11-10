@@ -21,3 +21,30 @@ describe('ResultsPanel — exportação', () => {
     expect(link).toHaveAttribute('download', 'auditoria.sarif')
   })
 })
+
+describe('ResultsPanel — status da varredura de dependências (RPT-01)', () => {
+  it('mostra a linha de status e os motivos de varredura incompleta', () => {
+    render(
+      <ResultsPanel
+        auditId="a1"
+        counts={{}}
+        payload={{
+          ...payload,
+          dependency_scan_status: {
+            headline: 'Varredura de dependências incompleta',
+            incomplete: true,
+            reasons: ['querybatch: timeout'],
+          },
+        }}
+      />,
+    )
+    const status = screen.getByRole('status', { name: 'Dependências' })
+    expect(status).toHaveTextContent('Varredura de dependências incompleta')
+    expect(status).toHaveTextContent('querybatch: timeout')
+  })
+
+  it('auditoria sem o campo (anterior ao G48) não mostra a linha', () => {
+    render(<ResultsPanel auditId="a1" payload={payload} counts={{}} />)
+    expect(screen.queryByRole('status', { name: 'Dependências' })).not.toBeInTheDocument()
+  })
+})

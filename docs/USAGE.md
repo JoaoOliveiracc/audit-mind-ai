@@ -76,6 +76,7 @@ Available variables (all optional except the key):
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Skeptical LLM judge (costs tokens). |
 | `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Only judge findings at or above this severity. |
 | `AUDITOR_ADVERSARIAL_VOTES` | `1` | Verdicts per finding (1–3 distinct lenses; majority wins). |
+| `AUDITOR_VULN_SCAN` | `false` | Vulnerable dependency/runtime scan: sends **only public package names and versions** to `api.osv.dev` and runtime names to `endoflife.date`. CLI `--vuln-scan/--no-vuln-scan` and the API/web `vuln_scan` field win over it. |
 
 ## 3. Running an audit
 
@@ -98,6 +99,24 @@ Terminal flow:
 ```bash
 auditor audit /path/to/project --no-questions
 ```
+
+### Vulnerable dependencies and runtimes (opt-in)
+
+```bash
+auditor audit /path/to/project --vuln-scan
+```
+
+Reads `package-lock.json`, `yarn.lock` (v1/berry), `pnpm-lock.yaml`, `composer.lock`, `poetry.lock`,
+`uv.lock`, `Pipfile.lock` and `requirements*.txt` (`==` pins), queries OSV.dev and adds one finding per
+vulnerable `package@version` (advisory ids, CVEs, "upgrade to ≥ X"); dev-only packages are `info`.
+Declared runtimes (`.nvmrc`, `.node-version`, `engines.node`, `require.php`, `.python-version`,
+`requires-python`, Dockerfile `FROM node|php|python`) are checked against endoflife.date.
+Private packages (non-public registry, git/path sources, `.npmrc`/`.yarnrc.yml` scopes, Composer
+packages not from Packagist, requirements with a private index) are **never queried** and are
+counted in the report; user-level/global registry settings (`~/.npmrc`, `~/.yarnrc.yml`,
+`npm_config_registry`, `PIP_INDEX_URL`, `pip.conf`, …) are honored too. The web checkbox starts from
+the server's `AUDITOR_VULN_SCAN` (`GET /defaults`). The report always states the scan status (disabled / incomplete / clean /
+N vulnerable). Network errors never abort the audit.
 
 ### Choosing the LLM provider
 

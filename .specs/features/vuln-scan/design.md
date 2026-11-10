@@ -1,6 +1,6 @@
 # Vulnerable Dependencies & Runtimes Design
 
-**Spec**: `.specs/features/vuln-scan/spec.md` · **Status**: Draft
+**Spec**: `.specs/features/vuln-scan/spec.md` · **Status**: Done
 Active decisions honored: AD-001 (no sub-graph checkpoints — the new node is a plain node), AD-002 (loopback API — unchanged). New: **AD-003** (below).
 
 ## Approaches

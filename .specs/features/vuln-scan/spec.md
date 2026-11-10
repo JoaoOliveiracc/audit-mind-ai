@@ -42,10 +42,10 @@ runtime version* can be detected.
 1. **LOCK-01** For each supported lockfile, the parser SHALL return `Dependency(ecosystem, name, version, dev, private, file, line)` for every installed package. `line` (1-based) is the line carrying that package's version: `package-lock.json`/`composer.lock` → the `"version"` line inside the package's block; `yarn.lock` (v1 and berry) → the `version` line of the entry; `pnpm-lock.yaml` → the package key line (`/name@version` or `name@version:`); `poetry.lock`/`uv.lock` → the `version = …` line of its `[[package]]`; `Pipfile.lock` → the `"version"` line; `requirements*.txt` → the `name==version` line itself.
 2. **LOCK-02** `dev` SHALL be true only when the lockfile marks the package as development-only (`package-lock` `dev: true`, `composer.lock` `packages-dev`, `poetry.lock` group/category `dev`, `Pipfile.lock` `develop`, `pnpm` `dev: true`, `uv` dev-only groups) **or** the file is `requirements-dev*.txt`, `requirements-test*.txt` or `dev-requirements*.txt`.
 3. **LOCK-03** A package SHALL be marked `private` (never queried) when any of these holds — conservative by design (doubt ⇒ private):
-   - **npm (all formats):** a git/file/link/workspace/tarball-URL source; `package-lock`/`yarn v1` `resolved` host ≠ `registry.npmjs.org`/`registry.yarnpkg.com`; the package's scope (or the default registry) is mapped to a non-public host in the project's `.npmrc` (`registry=`, `@scope:registry=`) or `.yarnrc.yml` (`npmRegistryServer`, `npmScopes.<scope>.npmRegistryServer`) — required because yarn berry and pnpm locks don't record the registry host;
+   - **npm (all formats):** a git/file/link/workspace/tarball-URL source; (phase-3 review fix) the user-level `~/.npmrc`/`~/.yarnrc.yml` and env `npm_config_registry`/`npm_config_@scope:registry`/`YARN_NPM_REGISTRY_SERVER` are honored like the project files; `package-lock`/`yarn v1` `resolved` host ≠ `registry.npmjs.org`/`registry.yarnpkg.com`; the package's scope (or the default registry) is mapped to a non-public host in the project's `.npmrc` (`registry=`, `@scope:registry=`) or `.yarnrc.yml` (`npmRegistryServer`, `npmScopes.<scope>.npmRegistryServer`) — required because yarn berry and pnpm locks don't record the registry host;
    - **composer.lock:** the package lacks `"notification-url": "https://packagist.org/downloads/"` (GitHub dist URLs can't distinguish public from private repos);
    - **poetry.lock / uv.lock:** a `source` other than PyPI (`https://pypi.org/simple` / no explicit source); **Pipfile.lock:** a package `index` whose `_meta.sources` URL is not PyPI;
-   - **requirements*.txt:** if the file declares `--index-url`/`--extra-index-url`/`-i` pointing outside PyPI, the **whole file** is skipped (origin per package is undeterminable) and recorded in stats; VCS/URL/path requirements are private.
+   - **requirements*.txt:** (phase-3 review fix) a non-PyPI index or `find-links` in the environment (`PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, `PIP_FIND_LINKS`, `UV_*`) or in `pip.conf` (`PIP_CONFIG_FILE`, user, system; unreadable ⇒ private) skips every requirements file; if the file declares `--index-url`/`--extra-index-url`/`-i` pointing outside PyPI, the **whole file** is skipped (origin per package is undeterminable) and recorded in stats; VCS/URL/path requirements are private.
 4. **LOCK-04** Malformed/unknown-version lockfiles SHALL NOT raise: the file is skipped and recorded in stats as a parse error.
 5. **LOCK-05** `.lock` SHALL no longer be treated as binary (investigators can read/search lockfiles).
 
@@ -64,22 +64,34 @@ runtime version* can be detected.
     - cycle-only declaration (e.g. `node:20-alpine`, `php:8.1-fpm`, `.python-version` `3.11`): cycle EOL → `high`; otherwise no finding;
     - exact declaration: cycle EOL → `high`; else lower than the cycle's `latest` → `medium`;
     - tags without a version (`lts`, `latest`, `alpine`, `current`) → unknown (RT-04).
-13. **RT-03** Range (`>=18`, `^8.1`, `>=3.9`): if its minimum cycle is EOL → `medium` ("a faixa permite runtime sem suporte").
+13. **RT-03** Range (`>=18`, `^8.1`, `>=3.9`): if its minimum cycle is EOL → `medium` (fix loop 1 — exact wording: "A faixa declarada (<valor>) permite <Runtime> <ciclo>, ciclo sem suporte (EOL): sem correções de segurança.").
 14. **RT-04** Unknown cycle/tag → no finding (recorded in stats). Findings: `source="endoflife"`, file/line/evidence = the declaring line.
 15. **RT-05** Each declaration is evaluated independently (e.g. `.nvmrc` `18` and `engines.node >=20` → up to two findings), never merged.
 
 ### P1: Activation, stats, interfaces ⭐ MVP
 16. **CFG-01** Disabled by default; enabled per run by `AUDITOR_VULN_SCAN`, CLI `--vuln-scan/--no-vuln-scan` (flag wins), API `CreateAuditRequest.vuln_scan` (request wins). When disabled: no network call at all.
 17. **CFG-02** State `dependency_scan` stats: `enabled, packages, queried, skipped_private, vulnerable, runtime_findings, errors[]`; emitted as SSE event `dependency_scan`; shown in the Markdown/HTML report and the CLI summary.
-18. **UI-01** The web start form SHALL have a "Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)" checkbox, off by default, sent as `vuln_scan`.
-19. **RPT-01** (spec review) The Markdown/HTML report and the CLI summary SHALL state the scan status explicitly: disabled → "Verificação de dependências desativada (AUDITOR_VULN_SCAN)"; errors or `truncated` → "Varredura de dependências incompleta" + the reasons; enabled and clean → "Nenhuma vulnerabilidade conhecida nas N dependências consultadas". (T10 precision fix) enabled with findings and no errors → "N pacote(s) vulnerável(is) entre M dependências consultadas"; every enabled status appends "(K privada(s) não consultada(s))" when K > 0. Absence of findings must never read as "secure" by omission.
+18. **UI-01** The web start form SHALL have a "Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)" checkbox, sent as `vuln_scan`. (Phase-3 review fix) Its initial state is the server default `GET /defaults` → `{"vuln_scan": AUDITOR_VULN_SCAN}` (off unless the server enables it); the user's explicit choice is never overwritten by a late default. The results panel shows the same RPT-01 status (`dependency_scan_status` in `GET /audits/{id}/findings`).
+19. **RPT-01** (spec review) The Markdown/HTML report and the CLI summary SHALL state the scan status explicitly: disabled → "Verificação de dependências desativada (AUDITOR_VULN_SCAN)"; errors or `truncated` → "Varredura de dependências incompleta" + the reasons; enabled and clean → "Nenhuma vulnerabilidade conhecida nas N dependências consultadas". (T10 precision fix) enabled with findings and no errors → "N pacote(s) vulnerável(is) entre M dependências consultadas"; every enabled status appends "(K privada(s) não consultada(s))" when K > 0. (Fix loop 1: this includes the "incompleta" status.) Absence of findings must never read as "secure" by omission.
 20. **DUP-01** (spec review) When the scan is enabled for the run, every investigator prompt SHALL include: "Vulnerabilidades conhecidas (CVEs) de dependências já são verificadas por uma varredura determinística — não as reporte; foque em uso inseguro das dependências no código." When disabled, prompts are unchanged.
 
 ### P1: End-to-end
 21. **E2E-05** Offline e2e (fake HTTP transport): a fixture project with a vulnerable `package-lock.json` entry, a private scoped package and `.nvmrc` on an EOL cycle yields one OSV finding (verified, not judged), one runtime finding, `skipped_private == 1`, and zero real network calls.
 
 ## Traceability
-(see tasks.md)
+| ID | Task | Status |
+| -- | ---- | ------ |
+| LOCK-01..05 | T2–T4, T9 | Verified |
+| OSV-01..03 | T1, T6, T8 | Verified |
+| FND-01..02 | T8, T9 | Verified |
+| RT-01..05 | T5, T7, T8 | Verified |
+| CFG-01..02 | T9, T10 | Verified |
+| UI-01 | T11 | Verified |
+| RPT-01 | T10 | Verified (fix loop 1) |
+| DUP-01 | T9 | Verified |
+| E2E-05 | T12 | Verified |
+
+Verifier: FAIL minor → fix loop 1 → **PASS** (21/21 ACs; 31/31 real mutants killed) — see `validation.md`.
 
 ## Review log
 - 2026-11-10 spec review (10 items): LOCK-03 per-format private rules (composer notification-url; .npmrc/.yarnrc.yml; requirements index → skip file); RPT-01 explicit scan status; DUP-01 no LLM duplicates; OSV-03 5 MB / 10 000 caps; OSV-01 PEP 503; RT-02 cycle vs exact per runtime; RT-05 independent declarations; LOCK-02 requirements dev names; LOCK-01 line per format; FND-01 cross-lockfile grouping.

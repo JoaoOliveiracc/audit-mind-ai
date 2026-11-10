@@ -8,6 +8,7 @@ import type { AuditSummary } from './types'
 
 vi.mock('./api/client', () => ({
   getProviders: vi.fn(),
+  getDefaults: vi.fn(),
   listAudits: vi.fn(),
   resumeAudit: vi.fn(),
   createAudit: vi.fn(),
@@ -30,6 +31,7 @@ const interrupted: AuditSummary = {
 
 beforeEach(() => {
   vi.mocked(client.getProviders).mockResolvedValue([])
+  vi.mocked(client.getDefaults).mockResolvedValue({ vuln_scan: false })
   vi.mocked(client.listAudits).mockResolvedValue([interrupted])
   vi.mocked(client.browseFs).mockResolvedValue({ path: '/', parent: null, entries: [] })
   vi.mocked(sse.connectAuditStream).mockReturnValue({ close: vi.fn() })
@@ -166,5 +168,22 @@ describe('App — chat da auditoria aberta', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
 
     await waitFor(() => expect(client.chatAudit).toHaveBeenCalledWith('c1', 'Q?', []))
+  })
+})
+
+describe('App — padrão do servidor para a varredura (vuln-scan UI-01)', () => {
+  const LABEL = 'Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)'
+
+  it('AUDITOR_VULN_SCAN=true no servidor deixa o checkbox marcado', async () => {
+    vi.mocked(client.getDefaults).mockResolvedValue({ vuln_scan: true })
+    render(<App />)
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: LABEL })).toBeChecked())
+  })
+
+  it('falha ao buscar os padrões mantém o checkbox desmarcado', async () => {
+    vi.mocked(client.getDefaults).mockRejectedValue(new Error('offline'))
+    render(<App />)
+    await waitFor(() => expect(client.getDefaults).toHaveBeenCalled())
+    expect(screen.getByRole('checkbox', { name: LABEL })).not.toBeChecked()
   })
 })

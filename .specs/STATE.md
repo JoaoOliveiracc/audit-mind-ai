@@ -28,10 +28,9 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/vuln-scan/` (G48)
-- **Phase / Task**: Phase 2 (T6–T10) **done** + phase-2 `/code-review` fixes applied; Phase 3 (T11–T12) not started
-- **Completed**: Phase 1 (T1–T5 + 10 review fixes) · T6 OSV client · T7 endoflife client + evaluate · T8 scanner · T9 node/config/CLI/API/adversarial/DUP-01/`.lock` · T10 scan status in report/CLI/API
-- **Next step**: on the user's go-ahead, Phase 3 — T11 web checkbox (UI-01)
+- **Feature**: `.specs/features/vuln-scan/` (G48) — **Done** (Verifier PASS after fix loop 1)
+- **Completed**: T1–T12, three `/code-review` rounds, fix loop 1
+- **Open user decisions**: (a) `.lock` readable by investigators even with the scan off (LOCK-05) vs. excluding lockfiles from `search_code` unless the glob targets them; (b) cap/aggregate the dependency penalty in the health score
+- **Next step**: user commits (git commands handed over); then decide (a)/(b)
 - **Blockers**: none
-- **Uncommitted files**: `src/auditor/vulnscan/` (+ sources/, scanner.py, status.py), `src/auditor/nodes/dependency_scan.py`, edits to config/state/graph/events/cli/api/nodes/prompts/report, `tests/vulnscan/` (11 files), `pyproject.toml`, `.specs/`
 - **Branch**: feat/vuln-scan

@@ -4,7 +4,7 @@
 
 Implement with the `tlc-spec-driven` skill (Execute flow + Critical Rules). If it cannot be activated, STOP and tell the user.
 
-**Design**: `.specs/features/vuln-scan/design.md` · **Status**: Draft
+**Design**: `.specs/features/vuln-scan/design.md` · **Status**: Done
 
 ## Test Coverage Matrix
 | Layer | Test | Location | Run |
@@ -79,3 +79,34 @@ Granularity: each task = one module/cohesive layer ✅. Dependencies linear with
   9. `_MIN_LINE_LEN` comment restored;
   10. single rule `models.is_deterministic` / `DETERMINISTIC_SOURCES` / `MAX_LOCKFILE_BYTES`, shared `RUNTIME_LABELS`; dead `ctx["dependency_scan"]` removed.
 - Suite after fixes: 468 (3.12 and 3.10); `make ci` exit 0.
+
+## Phase 3 — execution notes
+- T11 `StartForm` checkbox "Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)" — visible outside "opções avançadas" (egress choice must be seen), off by default, sent as `vuln_scan` (`types.ts`). Extra: Timeline step "04 · Investigação" now covers nodes `audit` + `dependency_scan` (an unknown node would leave the step ambiguous); `Entry` exposes `data-status` for the test. Tests: `StartForm.test.tsx` (3), `Timeline.test.tsx` (+1).
+- T12 E2E-05 `tests/test_e2e.py::test_e2e05_vuln_scan_end_to_end`: full graph, real `OSVClient`/`EndOfLifeClient` over `httpx.MockTransport`, `socket.connect` patched to fail; asserts 1 OSV finding verified and not judged, 1 runtime finding, `skipped_private == 1`, private name never sent, judge saw only the LLM finding, report status line. Passed on first run (it exercises behaviour delivered in phases 1–2).
+- Docs: README (feature, diagram, command), docs/USAGE (env var + section), docs/ARCHITECTURE (diagram, §6.1, data flow), SECURITY (egress), docs/ROADMAP, DOCUMENTACAO (config, node table, flow, G48 row ✅, G25–G48), `.env.example`.
+- Suite: backend 469 (3.12/3.10), frontend 48; `make ci` exit 0.
+- `/code-review` after phase 3 — 10 findings; 8 fixed with regression tests (`tests/vulnscan/test_vs_review3_fixes.py`, `StartForm/Timeline/ResultsPanel.test.tsx`), 2 left to the user:
+  1. web checkbox starts from the server default (`GET /defaults`), user choice never overwritten (UI-01 updated);
+  2. user-level/env npm registry config (`~/.npmrc`, `~/.yarnrc.yml`, `npm_config_*registry`, `YARN_NPM_REGISTRY_SERVER`) and pip/uv global indexes (env + `pip.conf`; unreadable ⇒ private) honored — private names no longer leak (LOCK-03 updated); tests isolate host env/system `pip.conf` (`tests/conftest.py`);
+  3. per-file guard in `scanner.scan` (one malformed lockfile no longer discards every other result);
+  4. linear line lookup (`lockfiles/_lines.py`; 20 000-package `package-lock` was > 120 s, now < 3 s);
+  7. poetry/uv `(name, version)` block index and section-aware Pipfile index (duplicate names cite their own line);
+  8. Timeline step done when a later step ran (pre-G48 resumes never emit `dependency_scan`);
+  9. results panel shows the RPT-01 status (`dependency_scan_status`, rendered by the backend `scan_status` — no duplicated wording);
+  10. single precedence rule `resolve_vuln_scan` (CLI, API, node).
+  - **Not changed (user decision):** (5) `.lock` readable by investigators even with the scan off — required by LOCK-05; (6) each vulnerable package weighs like any finding in the health score — changing the scoring formula is a product decision.
+- Suite: backend 509 (3.12/3.10), frontend 53; `make ci` exit 0.
+
+## Fix loop 1 (after Verifier FAIL minor — 14/21 ACs, 25/32 mutants)
+| Gap | Fix | Test |
+| --- | --- | ---- |
+| 1 RPT-01 incomplete status lacked the private suffix | `status.py`: "incompleta" + suffix | `test_vs_fix_loop1.py::test_incomplete_headline_carries_private_suffix` |
+| 2 M09 private-in-any-lockfile | — (code correct, untested) | `test_private_in_one_lockfile_is_never_queried` |
+| 3 M08 dev-only = all occurrences | — | `test_dev_in_one_prod_in_other_keeps_severity` |
+| 4 M24 `runtime_unknown` stat | — | `test_unknown_runtime_counted_in_stats` |
+| 5 M25 `UV_FIND_LINKS` | — | `test_uv_find_links_env_skips_requirements` |
+| 6 M10 cap boundary | — | `test_cap_boundary` (n == cap ⇒ not truncated) |
+| 7 M30 App `getDefaults` wiring | — | `App.test.tsx` "AUDITOR_VULN_SCAN=true no servidor deixa o checkbox marcado" + fetch failure |
+| 8 RT-03 wording | spec updated to the implemented text | `test_range_message_says_range_allows_unsupported_runtime` |
+| minor poetry `groups = ["dev"]` | — | `test_poetry_dev_group` |
+- Not changed: M04 (OSV query-side normalization) is equivalent — parsers already normalize PyPI names. VCS/URL/path requirement lines carry no version, so they are never queried (LOCK-03 satisfied) but are not counted in `skipped_private` — noted, not a spec violation.

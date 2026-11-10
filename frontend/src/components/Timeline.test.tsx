@@ -33,3 +33,29 @@ describe('Timeline — dimensão parcial (UI-01)', () => {
     expect(row).not.toHaveTextContent('parcial')
   })
 })
+
+describe('Timeline — varredura de dependências (G48)', () => {
+  const phase = (s: ReturnType<typeof auditReducer>, node: string) =>
+    auditReducer(s, { type: 'PHASE', event: { type: 'phase', node, label: node } } as never)
+
+  it('a investigação só conclui depois do nó dependency_scan', () => {
+    let s = auditReducer(initialState, { type: 'START' })
+    for (const n of ['discovery', 'plan_questions', 'clarify', 'planning', 'audit']) s = phase(s, n)
+    const { unmount } = render(<Timeline state={s} onClarifySubmit={() => {}} />)
+    expect(screen.getByText('04 · Investigação').closest('li')).not.toHaveAttribute('data-status', 'done')
+    unmount()
+    s = phase(s, 'dependency_scan')
+    render(<Timeline state={s} onClarifySubmit={() => {}} />)
+    expect(screen.getByText('04 · Investigação').closest('li')).toHaveAttribute('data-status', 'done')
+  })
+})
+
+describe('Timeline — retomada de auditoria anterior ao G48', () => {
+  it('etapa concluída quando uma etapa posterior já rodou, mesmo sem o evento dependency_scan', () => {
+    let s = auditReducer(initialState, { type: 'START' })
+    for (const node of ['discovery', 'plan_questions', 'clarify', 'planning', 'audit', 'verify'])
+      s = auditReducer(s, { type: 'PHASE', event: { type: 'phase', node, label: node } } as never)
+    render(<Timeline state={s} onClarifySubmit={() => {}} />)
+    expect(screen.getByText('04 · Investigação').closest('li')).toHaveAttribute('data-status', 'done')
+  })
+})
