@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G33 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G33, G36–G38 e G44 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -98,7 +98,7 @@ relatório profissional — sem nunca modificar o código auditado.
 
 **Componentes LangGraph/LangChain usados:**
 
-- `StateGraph` / `create_react_agent` — grafo de auditoria + investigadores ReAct por dimensão.
+- `StateGraph` / `create_agent` (`langchain.agents`, com middleware de orçamento) — grafo de auditoria + investigadores ReAct por dimensão.
 - `interrupt` + checkpointer — human-in-the-loop no nó `clarify`.
 - `init_chat_model` — abstração multi-provider (troca de provider por env/flag).
 - `with_structured_output(...)` — saída Pydantic validada (planos, achados, vereditos).
@@ -273,6 +273,8 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 pytest -q          # offline, sem LLM (smoke, verify, adversarial, api, escopo das tools)
 make test          # idem, dentro da .venv
 make lint          # ruff check src tests
+make typecheck     # mypy src (0 erros exigidos)
+make ci            # tudo que o CI roda (lint, tipos, pytest, npm ci, vitest, tsc, build)
 ```
 
 ---
@@ -287,7 +289,7 @@ make lint          # ruff check src tests
 | `plan_questions_node` | `clarify.py` | Gera perguntas de esclarecimento (Pydantic `ClarifyingQuestions`). |
 | `clarify_node` | `clarify.py` | `interrupt` para human-in-the-loop; coleta `user_context`. Pulado se `skip_questions`. |
 | `planning_node` | `planning.py` | LLM seleciona as dimensões aplicáveis (`AuditPlan`); fallback p/ dimensões padrão. |
-| `audit_node` | `audit.py` | Um `create_react_agent` por dimensão (com tools read-only), rodando **em paralelo** (thread pool, `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`); agrega `Finding`s na ordem do plano. Emite eventos SSE pela thread principal. |
+| `audit_node` | `audit.py` | Um `create_agent` por dimensão (com tools read-only), rodando **em paralelo** (thread pool, `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`); agrega `Finding`s na ordem do plano. Emite eventos SSE pela thread principal. |
 | `verify_node` | `verify.py` | Verificação **determinística** de evidência no disco (sem LLM); descarta achados alucinados. |
 | `adversarial_node` | `adversarial.py` | Juiz LLM cético (opcional) refuta achados elegíveis; votação por lentes. |
 | `synthesis_node` | `synthesis.py` | `compute_health_score` (0–100) + resumo executivo + contagem por severidade. |
@@ -348,7 +350,7 @@ health_score = max(0, 100 - min(100, penalty))
 3. **clarify** — `interrupt`: pausa e aguarda respostas do usuário (CLI ou API). Pulado com `--no-questions`.
 4. **planning** — o LLM escolhe as dimensões relevantes e as notas de foco.
 5. **audit** — para cada dimensão, em **duas fases desacopladas**: (a) *investigação* — um agent
-   ReAct (`create_react_agent`, sem `response_format`) explora o código com as tools read-only e
+   ReAct (`create_agent` + `_BudgetMiddleware`, sem `response_format`) explora o código com as tools read-only e
    escreve um relatório textual; (b) *estruturação* — uma chamada isolada a
    `with_structured_output(DimensionResult)` (prompt `STRUCTURE_PROMPT`) converte só o texto do
    relatório, sem o histórico de tool calls. Se o orçamento de passos acabar, uma chamada de
@@ -459,7 +461,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~**G29**~~ ✅ | Os sub-agentes ReAct herdavam o checkpointer do grafo pai: **cada passo** de cada investigador era persistido. 2091 de 2220 checkpoints (≈ 880 MB de ≈ 886 MB) são de *subgraph*, todos de auditorias de 02–03/07 (35–132 MB cada). **Correção à análise:** auditorias desde 07/07 já não geravam esses checkpoints — só *por acidente* (o `ThreadPoolExecutor` não propaga o contexto do checkpointer). | 🟠 Alto | Reproduzido — banco local de 856 MB / 14 auditorias. | ✅ **Resolvido** — `create_react_agent(..., checkpointer=False)` (AD-001) + teste que roda o investigador no mesmo contexto do pai; `auditor db compact` limpa o legado. |
 | ~~G30~~ ✅ | `search_code` ignora **todo** o projeto se algum diretório **ancestral** da raiz tiver nome em `ignore_dirs` (`build`, `bin`, `env`, `out`, `target`, `dist`, `vendor`…) — testa partes do caminho absoluto. O mesmo padrão em `detect_stack` torna `has_tests=True` para qualquer projeto sob uma pasta `tests/`. | 🟡 Médio | Reproduzido — projeto em `…/build/proj` → `(nenhum resultado)`. `tools/filesystem.py:93`, `tools/project.py:83`. | ✅ **Resolvido** — `search_code` e `detect_stack` usam `path.relative_to(root).parts`. |
 | ~~G31~~ ✅ | Auditorias "zumbis": após reiniciar a API, registros em `running`/`waiting_input` ficam assim para sempre (o `registry` é em memória); o histórico tenta reconectar o SSE e recebe 404. | 🟡 Médio | Reproduzido — banco local tem 1 `running` + 2 `waiting_input` órfãos. | ✅ **Resolvido** — órfãs viram `interrupted` na subida; `POST /audits/{id}/resume` + botão **Retomar** retomam do checkpoint. |
-| ~~G32~~ ✅ | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | ✅ **Resolvido** (reproduzido antes) — aviso de conclusão quando restam ≤ 5 passos (prompt-função, sem passo extra) e, se ainda estourar, 1 chamada de resgate sem tools sobre o histórico condensado; a dimensão sai marcada como parcial (prefixo no resumo, SSE `partial`, aviso na CLI). Spec: `.specs/features/investigator-budget/`. |
+| ~~G32~~ ✅ | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | ✅ **Resolvido** (reproduzido antes) — aviso de conclusão nas 2 últimas chamadas do modelo (middleware — ver G44) e, se ainda estourar, 1 chamada de resgate sem tools sobre o histórico condensado; a dimensão sai marcada como parcial (prefixo no resumo, SSE `partial`, aviso na CLI). Spec: `.specs/features/investigator-budget/`. |
 | ~~G33~~ ✅ | `synthesis_node` usa `str(response.content)` quando o provider devolve blocos (Anthropic/Gemini) → o resumo executivo sai como `repr` de lista. | 🟢 Baixo | Análise — `nodes/synthesis.py:46` (o `audit._final_report` já trata isso). | ✅ **Resolvido** — helper comum `nodes/_messages.content_text` usado por `audit` e `synthesis`. |
 | G34 | `search_code` percorre `root.glob("**/*")` inteiro (incluindo `node_modules`, `.venv`) e só filtra depois → lento em repositórios grandes. | 🟢 Baixo | Análise. | `os.walk` com poda de `ignore_dirs` (como `_iter_files`). |
 | G35 | O juiz adversarial é sequencial (achados × votos chamadas em série), ao contrário dos investigadores. | 🟢 Baixo | Análise — `nodes/adversarial.py:126`. | Thread pool com o mesmo limite de concorrência. |
@@ -468,19 +470,19 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 
 | # | Gap | Sev. | Evidência | Correção proposta |
 |---|-----|------|-----------|-------------------|
-| G36 | Cache do Vite (`frontend/.vite/`, 12 arquivos, ~37 mil linhas) foi commitado em `4181510`. | 🟡 Médio | `git ls-files frontend/.vite`. | ✅ `.vite/` adicionado ao `frontend/.gitignore`; falta `git rm -r --cached frontend/.vite`. |
-| G37 | Sem pipeline de CI (`.github/workflows` inexistente): ruff, pytest, vitest, tsc e mypy não são exigidos — e o próprio SARIF do agente não é publicado. | 🟡 Médio | Análise. | Workflow com lint + testes + build. |
-| G38 | `mypy src` acusa 16 erros (dicts de estatística tipados como `object`, retorno de `with_structured_output`, `Optional` em `routes.py:109`). | 🟢 Baixo | Reproduzido. | Tipar stats (TypedDict/dataclass), `cast` nos structured outputs, alvo `make typecheck`. |
+| ~~G36~~ ✅ | Cache do Vite (`frontend/.vite/`, 12 arquivos, ~37 mil linhas) foi commitado em `4181510`. | 🟡 Médio | `git ls-files frontend/.vite`. | ✅ **Resolvido** — `.vite/` no `frontend/.gitignore` e removido do índice (`78dc680`). |
+| ~~G37~~ ✅ | Sem pipeline de CI (`.github/workflows` inexistente): ruff, pytest, vitest, tsc e mypy não são exigidos — e o próprio SARIF do agente não é publicado. | 🟡 Médio | Análise. | ✅ **Resolvido** — `.github/workflows/ci.yml`: backend em Python 3.10 e 3.12 (ruff, mypy, pytest) e frontend em Node 20 (`npm ci`, vitest, tsc, build); `make ci` é o espelho local. Spec: `.specs/features/ci-quality-gates/`. |
+| ~~G38~~ ✅ | `mypy src` acusa 16 erros (dicts de estatística tipados como `object`, retorno de `with_structured_output`, `Optional` em `routes.py:109`). | 🟢 Baixo | Reproduzido. | ✅ **Resolvido** — `mypy src` com 0 erros (17 corrigidos sem mudar comportamento), exigido no CI; `make typecheck`. |
 | G39 | Cobertura: nenhum teste cobre os casos-limite das tools (glob, symlink, ancestral — exatamente onde estão G25/G26/G30), nem `discovery`/`planning`/`synthesis`/CLI, nem um e2e com LLM falso. | 🟢 Baixo | Inventário de `tests/`. | Testes de regressão junto de cada correção. |
-| G40 | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | Fonte única (`pyproject`), um gerenciador JS, mínimos realistas. |
+| G40 | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | ⚙️ **Parcial** — frontend só com npm (pnpm removido); ferramentas de dev com faixas limitadas e regras do ruff explícitas. Mínimos realistas aplicados com o G44 (`langgraph>=1.2`, `langchain>=1.3`, `langchain-core>=1.4`). Falta: fonte única (`requirements.txt` duplica o `pyproject`) e atualizar mínimos dos extras de provedores (ex.: `langchain-anthropic>=0.3.0` é anterior ao core 1.x — o resolvedor escolhe 1.x, sem quebra). Nota: o `_BudgetMiddleware` só implementa `wrap_model_call` síncrono; migrar para `ainvoke` exigiria `awrap_model_call`. |
 | G41 | Duplicação: `_emit` copiado em 3 nós; `NODE_LABELS` em `cli.py` e `runner.py`; contagem por severidade em 4 lugares. | 🟢 Baixo | Análise. | Extrair para um módulo comum (`auditor.events`, `auditor.scoring`). |
-| G44 | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | Migrar para `create_agent` mantendo `checkpointer=False` e o teste SUB-01. |
+| ~~G44~~ ✅ | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | ✅ **Resolvido** — investigadores em `langchain.agents.create_agent`; o orçamento virou um middleware próprio (aviso nas 2 últimas chamadas + parada com marcador nosso), sem depender de `remaining_steps` nem de texto upstream; mínimos `langchain>=1.3`, `langgraph>=1.2`. Spec: `.specs/features/create-agent-migration/`. |
 | G45 | Relatórios nomeados só com timestamp de 1 s (`auditoria-AAAAMMDD-HHMMSS.*`): duas auditorias concluídas no mesmo segundo sobrescrevem os arquivos uma da outra — e excluir uma apaga os relatórios da outra. | 🟢 Baixo | Análise (Verifier de `audit-retention`) — `report/renderer.py:177-182`. | Incluir o id da auditoria (ou sufixo único) no nome do arquivo. |
 | G46 | Clicar na **linha** de uma auditoria `interrupted` no histórico tenta reconectar o SSE (404 → "Conexão perdida") em vez de orientar a usar **Retomar**. | 🟢 Baixo | Análise (`App.handleOpenAudit`). | Tratar `interrupted` no `handleOpenAudit` (mensagem ou retomada); desabilitar **Retomar** enquanto a requisição está em voo (clique duplo hoje mostra um 409 inofensivo). |
 | G42 | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ comentário corrigido; restante no backlog. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
-(disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → (5) G37+G38+G36 (higiene/CI) → restante.
+(disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → ~~(5) G37+G38+G36 (higiene/CI)~~ ✅ → restante.
 
 ---
 
@@ -504,8 +506,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G33 concluídos)
-G25–G33 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G33, G36–G38 e G44 concluídos)
+G25–G33, G36–G38 e G44 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

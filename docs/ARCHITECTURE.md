@@ -26,7 +26,7 @@ code on disk (and optionally by an adversarial LLM judge) before the report.
                     └──────┬───────┘
                            ▼
                     ┌──────────────┐  per dimension, in a thread pool:
-                    │    audit     │   1) create_react_agent(tools) → text report
+                    │    audit     │   1) create_agent(tools, budget middleware) → text report
                     └──────┬───────┘   2) with_structured_output → DimensionResult
                            ▼
                     ┌──────────────┐
@@ -103,7 +103,7 @@ removes legacy sub-graph checkpoints.
 
 Each dimension is audited in two decoupled phases:
 
-1. **Investigation** — `create_react_agent(llm, tools, prompt)` with **no** `response_format`.
+1. **Investigation** — `langchain.agents.create_agent(llm, tools, system_prompt, middleware=[budget])` with **no** `response_format`.
    Tools: `read_file`, `list_directory`, `search_code`. The agent ends by writing a textual report.
 2. **Structuring** — a separate `llm.with_structured_output(DimensionResult)` call receives only
    the report text (`STRUCTURE_PROMPT`), not the tool-call history. This avoids the
@@ -112,13 +112,15 @@ Each dimension is audited in two decoupled phases:
 - **Parallelism:** investigators run in a `ThreadPoolExecutor`
   (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`, default 4). SSE/console progress is emitted from the
   main thread (where the LangGraph stream writer is valid); aggregation follows the plan order.
-- **Step budget:** `AUDITOR_MAX_INVESTIGATOR_STEPS` (default 80) is the `recursion_limit` — graph
-  steps, ≈ 2 per tool call. The agent's `prompt` is a callable that appends a wrap-up notice when
-  `remaining_steps ≤ 5` (no extra graph node, so no budget is lost). If the prebuilt agent still ends
-  with its "need more steps" sentinel, one **salvage** call without tools writes the report from a
-  condensed transcript (tool results ≤ 2 000 chars each, ≤ 60 000 total); the dimension summary is
-  prefixed `⚠️ Investigação parcial…` and the SSE event status is `partial`.
-  half of that in tool calls.
+- **Step budget (G32/G44):** `AUDITOR_MAX_INVESTIGATOR_STEPS` (default 80, ≈ 2 per tool call) gives
+  `max(2, steps // 2)` model calls. A `_BudgetMiddleware` counts model calls (the `AIMessage`s in the
+  history): on the last 2 calls `wrap_model_call` appends a wrap-up notice; when the budget is spent
+  `before_model` ends the run with our own `BUDGET_EXHAUSTED_MARKER` (`jump_to="end"`). `recursion_limit`
+  (`4 × calls + 10`) is only a safety net — in `create_agent` hitting it raises `GraphRecursionError`
+  and loses the history. On the marker, one **salvage** call without tools writes the report from a
+  condensed transcript (tool results ≤ 2 000 chars each, ≤ 60 000 total, inside `<historico>`
+  delimiters as untrusted data); the dimension summary is prefixed `⚠️ Investigação parcial…` and the
+  SSE event status is `partial`.
 - **Failure isolation:** an exception in one dimension is recorded in its summary without
   aborting the others.
 

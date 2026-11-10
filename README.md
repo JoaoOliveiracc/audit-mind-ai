@@ -1,5 +1,7 @@
 # Audit Mind AI 🕵️
 
+[![CI](https://github.com/JoaoOliveiracc/audit-mind-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoOliveiracc/audit-mind-ai/actions/workflows/ci.yml)
+
 A **stack-agnostic development-project auditing agent**, built with **LangGraph + LangChain** and a **multi-provider LLM layer** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, local Ollama, Bedrock…).
 
 The agent discovers the project's stack, talks to you to clarify scope, runs specialized per-dimension investigators (security, quality, architecture, testing, dependencies, etc.) and produces a **complete report in Markdown and HTML**.
@@ -152,8 +154,10 @@ CORS setup needed; see `frontend/vite.config.ts`). Production build: `vite build
 ## 🧪 Tests
 
 ```bash
-pytest -q                    # backend tests (offline, no LLM)
-cd frontend && npm test      # frontend tests (Vitest)
+make ci                      # everything CI runs: ruff, mypy, pytest, npm ci, vitest, tsc, vite build
+pytest -q                    # backend tests only (offline, no LLM; needs .[dev,api])
+make typecheck               # mypy src (must report 0 errors)
+cd frontend && npm test      # frontend tests only (Vitest)
 ```
 
 ## 📚 Documentation

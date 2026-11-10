@@ -5,7 +5,7 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"      # or: pip install -r requirements.txt
+pip install -e ".[dev,api]"  # dev tools + API (needed to run the full test suite)
 make hooks                   # enable the security pre-commit hook
 ```
 

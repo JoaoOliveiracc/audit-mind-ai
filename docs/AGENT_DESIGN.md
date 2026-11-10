@@ -47,6 +47,14 @@ produced boundary errors with some providers (leaked tool calls, `tool_calls` wi
 Now the ReAct agent only investigates and writes a text report; a second, isolated
 `with_structured_output` call converts that report (`STRUCTURE_PROMPT`).
 
+### 3.2 `create_agent` + budget middleware (G44)
+
+Investigators are built with `langchain.agents.create_agent` (the deprecated
+`langgraph.prebuilt.create_react_agent` was removed). The step budget is a small
+`AgentMiddleware` — wrap-up notice on the last model calls, clean stop with our own marker —
+because `create_agent` has no `remaining_steps` and raises on `recursion_limit`. Extra
+behaviors (retries, summarization, PII redaction) can be added to the same middleware list.
+
 ## 4. Read-only and safe tools
 
 - The agent **audits, it does not fix** → all tools are read-only.

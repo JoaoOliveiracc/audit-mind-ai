@@ -14,7 +14,8 @@
 - [x] Enforce root scoping in `search_code` (glob `..`, symlinks) and fix ancestor `ignore_dirs` matching (G25/G26/G30).
 - [x] Reconcile/resume orphaned audits after API restart; `Host` validation against DNS rebinding (G31/G27).
 - [ ] Investigator step budget with forced final report; text extraction in synthesis (G32/G33).
-- [ ] CI (lint, tests, type-check, frontend build) and mypy clean (G37/G38).
+- [x] CI (lint, tests, type-check, frontend build) and mypy clean (G37/G38) — `.github/workflows/ci.yml`, `make ci`.
+- [ ] Dogfooding: run the auditor on its own repo in CI and upload the SARIF to Code Scanning (needs an LLM secret).
 
 See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
 
@@ -22,7 +23,7 @@ See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
 - [x] **Parallelize investigators** — delivered with a thread pool (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`).
 - [x] **Persistent checkpointer** (`SqliteSaver`) — delivered in the API mode.
 - [x] Stop persisting sub-agent checkpoints; manual deletion + `auditor db compact` (G28/G29).
-- [ ] Migrate investigators from deprecated `create_react_agent` to `langchain.agents.create_agent` (G44).
+- [x] Migrate investigators from deprecated `create_react_agent` to `langchain.agents.create_agent` (G44).
 - [ ] Cache file reads across dimensions.
 - [ ] Intelligent summarization/selection of files in very large projects (map-reduce).
 
