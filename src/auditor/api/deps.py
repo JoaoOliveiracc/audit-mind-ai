@@ -9,9 +9,15 @@ from .store import AuditStore, build_checkpointer
 
 
 @lru_cache
+def get_checkpointer():
+    """Checkpointer SQLite persistente (singleton, compartilhado com o grafo)."""
+    return build_checkpointer()
+
+
+@lru_cache
 def get_graph():
     """Grafo compilado com checkpointer SQLite persistente (singleton)."""
-    return build_graph(checkpointer=build_checkpointer())
+    return build_graph(checkpointer=get_checkpointer())
 
 
 @lru_cache

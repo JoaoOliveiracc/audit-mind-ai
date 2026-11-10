@@ -1,8 +1,11 @@
 """Ferramentas de sistema de arquivos escopadas à raiz do projeto (read-only, seguras)."""
 from __future__ import annotations
 
+import os
 import re
+from fnmatch import fnmatchcase
 from pathlib import Path
+from typing import Iterator
 
 from langchain_core.tools import StructuredTool
 
@@ -16,6 +19,41 @@ def _safe_resolve(root: Path, rel_path: str) -> Path:
     if root_resolved != candidate and root_resolved not in candidate.parents:
         raise ValueError(f"Acesso negado: '{rel_path}' está fora da raiz do projeto.")
     return candidate
+
+
+def _glob_segments(glob: str) -> list[str]:
+    """Segmentos do glob (``/``), sem ``.`` e vazios — ``'./src//*.py'`` → ``['src', '*.py']``."""
+    return [seg for seg in glob.replace("\\", "/").split("/") if seg not in ("", ".")]
+
+
+def _glob_matches(parts: tuple[str, ...], segs: list[str]) -> bool:
+    """Casa um caminho relativo (partes) com o glob: ``fnmatchcase`` por segmento e ``**`` =
+    zero ou mais diretórios (no fim, qualquer arquivo abaixo)."""
+    if not segs:
+        return not parts
+    if segs[0] == "**":
+        return any(_glob_matches(parts[i:], segs[1:]) for i in range(len(parts) + 1))
+    return bool(parts) and fnmatchcase(parts[0], segs[0]) and _glob_matches(parts[1:], segs[1:])
+
+
+def _iter_glob_files(root: Path, segs: list[str], ignore_dirs) -> Iterator[Path]:
+    """Arquivos sob ``root`` que casam com ``segs``, ordenados pelo caminho relativo (G34).
+
+    Poda ``ignore_dirs`` antes de listar, não segue diretórios-link e, sem ``**``, não
+    desce além da profundidade do padrão.
+    """
+    max_dirs = None if "**" in segs else len(segs) - 1   # profundidade máxima de diretórios
+    matches: list[tuple[str, ...]] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        rel_dir = Path(dirpath).relative_to(root).parts
+        if max_dirs is not None and len(rel_dir) >= max_dirs:
+            dirnames[:] = []
+        else:
+            dirnames[:] = [d for d in dirnames if d not in ignore_dirs]
+        matches.extend((*rel_dir, n) for n in filenames if _glob_matches((*rel_dir, n), segs))
+    # Só nomes foram listados até aqui (barato); ordena por caminho relativo e entrega.
+    for parts in sorted(matches, key="/".join):
+        yield root.joinpath(*parts)
 
 
 def make_project_tools(root: Path, settings: Settings) -> list[StructuredTool]:
@@ -82,16 +120,27 @@ def make_project_tools(root: Path, settings: Settings) -> list[StructuredTool]:
             glob: Padrão glob de arquivos (ex.: '**/*.py'). Padrão: todos.
             is_regex: Se True, trata ``pattern`` como regex.
         """
+        # O glob vem do LLM (e, por prompt injection, do código auditado): nada de
+        # padrões absolutos ou com componente '..' — a busca fica confinada à raiz.
+        if Path(glob).is_absolute() or ".." in re.split(r"[\\/]", glob):
+            return "ERRO: glob deve ser relativo à raiz do projeto e sem '..'."
+        segs = _glob_segments(glob)
+        if not segs:
+            return "ERRO: glob vazio — use, por exemplo, '**/*' ou '**/*.py'."
         try:
             matcher = re.compile(pattern if is_regex else re.escape(pattern), re.IGNORECASE)
         except re.error as exc:
             return f"ERRO: regex inválida: {exc}"
         results: list[str] = []
-        for path in root.glob(glob):
+        for path in _iter_glob_files(root, segs, settings.ignore_dirs):
             if not path.is_file():
                 continue
-            if any(part in settings.ignore_dirs for part in path.parts):
+            try:  # symlink cujo alvo real está fora da raiz: não lê
+                _safe_resolve(root, path.relative_to(root).as_posix())
+            except ValueError:
                 continue
+            # ignore_dirs já foi aplicado aos DIRETÓRIOS no walk (G30/G34); arquivos com
+            # esses nomes (ex.: um script `build`) são pesquisados (SRCH-08).
             if path.suffix.lower() in settings.binary_extensions:
                 continue
             try:

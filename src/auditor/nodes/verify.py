@@ -11,17 +11,15 @@ from __future__ import annotations
 import difflib
 import re
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
 from ..config import get_settings
+from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..state import AuditState
 from ..tools.filesystem import _safe_resolve
 
-try:
-    from langgraph.config import get_stream_writer
-except ImportError:  # pragma: no cover
-    get_stream_writer = None
 
 _console = Console(stderr=True)
 
@@ -30,13 +28,6 @@ _LINENO = re.compile(r"^\s*\d+\|\s?", re.MULTILINE)  # prefixo "  12| " do read_
 _MIN_LINE_LEN = 4  # ignora linhas de evidência triviais ("{", "})", etc.
 
 
-def _emit(data: dict) -> None:
-    if get_stream_writer is None:
-        return
-    try:
-        get_stream_writer()(data)
-    except Exception:
-        pass
 
 
 def _normalize(text: str) -> str:
@@ -121,7 +112,7 @@ def verify_node(state: AuditState) -> dict:
 
     root = Path(state["project_path"]).expanduser().resolve()
     kept: list[dict] = []
-    stats = {"enabled": True, "verified": 0, "unverified": 0, "rejected": 0,
+    stats: dict[str, Any] = {"enabled": True, "verified": 0, "unverified": 0, "rejected": 0,
              "rejected_titles": []}
 
     for finding in findings:

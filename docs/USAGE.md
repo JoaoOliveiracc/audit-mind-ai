@@ -5,7 +5,7 @@
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"      # or: pip install -r requirements.txt
+pip install -e ".[dev,api]"  # dev tools + API (needed to run the full test suite)
 make hooks                   # enable the security pre-commit hook
 ```
 
@@ -66,8 +66,16 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_FILE_BYTES` | `200000` | Max. bytes read per file. |
 | `AUDITOR_MAX_FILES` | `5000` | Max. files in the inventory. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Max. results per search. |
-| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `25` | Max. reasoning steps per investigator. |
+| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` per investigator (graph steps ≈ 2× tool calls). Near the end the agent is told to conclude; if it still runs out, a salvage report is written and the dimension is marked **partial**. |
+| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators (and adversarial-judge calls) running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
+| `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
+| `AUDITOR_DATA_DIR` | `~/.config/auditor` | Where the API keeps its SQLite databases (audit metadata + checkpoints); created on first use. |
+| `AUDITOR_ALLOWED_HOSTS` | — | Extra `Host` values the API accepts besides `localhost`/`127.0.0.1`/`[::1]` (comma-separated). Only for deliberate exposure with `serve --allow-remote`. |
+| `AUDITOR_VERIFY_EVIDENCE` | `true` | Deterministic evidence check (drops unsubstantiated findings). |
+| `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Skeptical LLM judge (costs tokens). |
+| `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Only judge findings at or above this severity. |
+| `AUDITOR_ADVERSARIAL_VOTES` | `1` | Verdicts per finding (1–3 distinct lenses; majority wins). |
 
 ## 3. Running an audit
 
@@ -81,8 +89,9 @@ Terminal flow:
 1. The agent detects the stack and shows progress.
 2. It asks clarification questions — answer them or press Enter to skip.
 3. It runs the investigators per dimension (live progress).
-4. It consolidates, scores, and writes the reports.
-5. It displays the summary and the paths of the generated files.
+4. It verifies each finding's evidence on disk (and, if enabled, runs the adversarial judge).
+5. It consolidates, scores, and writes the reports.
+6. It displays the summary and the paths of the generated files.
 
 ### Non-interactive mode (CI/automation)
 
@@ -96,6 +105,7 @@ Install the provider package and select it via env or flag:
 
 ```bash
 pip install -e ".[openai]"          # or .[google] / .[groq] / .[deepseek] / .[ollama] / .[all-providers]
+pip install -e ".[vertexai]"          # or .[cohere] / .[together] / .[fireworks] / .[aws]
 
 auditor audit /proj --provider openai       --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash
@@ -118,8 +128,9 @@ credentials (AWS/gcloud).
 
 ```
 audit-reports/
-├── auditoria-20260701-143022.md      # versionable, for the repository
-└── auditoria-20260701-143022.html    # self-contained, to share
+├── auditoria-20260701-143022-3f9a1c2e.md      # versionable, for the repository
+├── auditoria-20260701-143022-3f9a1c2e.html    # self-contained, to share
+└── auditoria-20260701-143022-3f9a1c2e.sarif   # SARIF 2.1.0 (GitHub Code Scanning / CI)
 ```
 
 ## 4. Interpreting the report
@@ -143,6 +154,7 @@ graph = build_graph()
 config = {"configurable": {"thread_id": "my-audit"}}
 
 state = {"project_path": "/proj", "user_goal": "", "user_context": {},
+         "provider": "anthropic", "model": "claude-sonnet-4-5",  # optional per-run override
          "findings": [], "dimension_summaries": []}
 
 # run until the clarification interrupt
@@ -163,7 +175,10 @@ print(final["health_score"], final["report_html_path"])
 | `auditor: command not found` | venv not activated / no global installation | Activate the venv or perform the global installation (§1). |
 | `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
 | `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
-| `Recursion limit reached` | project too large for the step count | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| Dimension summary starts with `⚠️ Investigação parcial` (timeline: *parcial — orçamento esgotado*) | the investigator ran out of steps; its report was salvaged from what it had inspected | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS` or narrow the focus with `--goal`. |
+| API answers `400 Host não permitido.` | request `Host` is not loopback (e.g. a custom hostname or LAN IP) | Use `localhost`/`127.0.0.1`, or add the host to `AUDITOR_ALLOWED_HOSTS`. |
+| Audit shows `interrompida` in the history | the API process stopped while it ran (restart, `--reload`) | Click **Retomar** (`POST /audits/{id}/resume`); the interrupted step re-runs. |
+| `~/.config/auditor/audits-checkpoints.sqlite` is very large | legacy audits (before the G29 fix) stored every sub-agent step | Stop the API and run `auditor db compact`; delete unwanted audits from the web history (`DELETE /audits/{id}`). |
 | Slow/expensive audit | too many dimensions/files | Reduce `AUDITOR_MAX_FILES` or use `--goal` to narrow the focus. |
 | Few findings | insufficient context | Answer the clarification questions in detail. |
 

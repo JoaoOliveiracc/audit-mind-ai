@@ -14,7 +14,9 @@ report grounded in evidence.
 - Clarification dialogue with the user (human-in-the-loop).
 - Multidimensional audit (see §4).
 - Health score and risk prioritization.
-- Report in Markdown and HTML.
+- Report in Markdown and HTML, plus SARIF 2.1.0 export.
+- Deterministic evidence verification and optional adversarial review of findings.
+- Local web interface (FastAPI + SSE backend, Vite/React frontend).
 
 ### 2.2 Out of scope (v0.1)
 - Execution of the audited project's code (dynamic sandboxing).
@@ -56,6 +58,10 @@ The agent dynamically selects the dimensions applicable to the project:
 - **RF-06** The agent computes a health score of 0–100 from the severities.
 - **RF-07** The agent produces a consolidated executive summary.
 - **RF-08** The report is emitted in Markdown and HTML.
+- **RF-09** Findings are also exported as SARIF 2.1.0 (GitHub Code Scanning compatible).
+- **RF-10** Every finding citing a file is checked on disk; findings whose evidence cannot be located are discarded.
+- **RF-11** (optional) An adversarial LLM judge tries to refute findings at or above a severity threshold.
+- **RF-12** The audit can be driven through a local HTTP API with SSE progress and human-in-the-loop answers.
 
 ## 6. Non-functional requirements
 
@@ -65,10 +71,12 @@ The agent dynamically selects the dimensions applicable to the project:
 - **RNF-04 (Configurability)** Model, limits and directories configurable via env.
 - **RNF-05 (Determinism)** Default temperature 0 for reasonable reproducibility.
 - **RNF-06 (Cost/limits)** Limits on files, size and reasoning steps prevent cost explosion.
+- **RNF-07 (Untrusted input)** The audited code is treated as untrusted: reports are escaped (no stored XSS) and tools never write.
+- **RNF-08 (Concurrency)** Investigators run in parallel with a configurable limit; concurrent audits may use different providers.
 
 ## 7. Acceptance criteria
 
-- Running `auditor audit <dir>` on a project of any stack produces `.md` and `.html` reports without errors.
+- Running `auditor audit <dir>` on a project of any stack produces `.md`, `.html` and `.sarif` reports without errors.
 - Critical findings (e.g. hardcoded secret) are detected and classified as `critical`.
 - The HTML report opens in any browser without external resources.
 - The smoke tests (`pytest`) pass offline.
@@ -78,6 +86,7 @@ The agent dynamically selects the dimensions applicable to the project:
 **Input:** path of a project directory + optional objective + clarification responses.
 
 **Output:**
-- `audit-reports/auditoria-<timestamp>.md`
-- `audit-reports/auditoria-<timestamp>.html`
+- `audit-reports/auditoria-<timestamp>-<id8>.md`
+- `audit-reports/auditoria-<timestamp>-<id8>.html`
+- `audit-reports/auditoria-<timestamp>-<id8>.sarif`
 - Terminal summary (score + finding distribution + paths).

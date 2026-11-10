@@ -1,5 +1,7 @@
 # Audit Mind AI 🕵️
 
+[![CI](https://github.com/JoaoOliveiracc/audit-mind-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoOliveiracc/audit-mind-ai/actions/workflows/ci.yml)
+
 A **stack-agnostic development-project auditing agent**, built with **LangGraph + LangChain** and a **multi-provider LLM layer** (Anthropic, OpenAI, Google, Groq, Mistral, DeepSeek, local Ollama, Bedrock…).
 
 The agent discovers the project's stack, talks to you to clarify scope, runs specialized per-dimension investigators (security, quality, architecture, testing, dependencies, etc.) and produces a **complete report in Markdown and HTML**.
@@ -16,7 +18,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 - **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
 - **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
 - **SARIF export** — findings also emitted as SARIF 2.1.0, ready to upload to **GitHub Code Scanning** (inline PR alerts) or any SARIF-aware CI.
-- **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies.
+- **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies. See the threat model in [`SECURITY.md`](SECURITY.md) (open gaps are tracked in `DOCUMENTACAO.md` §10.3).
 
 ## 🏗️ Architecture at a glance
 
@@ -47,7 +49,8 @@ auditor audit /path/to/project --goal "Preparing for production, security focus"
 
 The agent will ask a few questions in the terminal, run the audit and write the
 reports to `./audit-reports/` (configurable via `AUDITOR_OUTPUT_DIR`) — as
-`auditoria-<timestamp>.{md,html,sarif}`.
+`auditoria-<timestamp>-<id8>.{md,html,sarif}` (`id8` = first 8 chars of the audit id — the `id`
+returned by the API; reports never overwrite each other).
 
 ### Non-interactive mode (CI/pipeline)
 
@@ -92,6 +95,7 @@ Each provider requires its integration package and its credential:
 ```bash
 # install the desired provider(s)
 pip install -e ".[openai]"        # or .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
+pip install -e ".[vertexai]"      # or .[cohere], .[together], .[fireworks], .[aws]
 
 # select via flag (overrides .env)
 auditor audit /proj --provider openai       --model gpt-4o
@@ -111,8 +115,9 @@ auditor providers   # list all providers, packages and credentials
 | Command | Description |
 | --- | --- |
 | `auditor audit PATH [--goal TXT] [--no-questions] [--provider P] [--model M]` | Run the audit and emit the report. |
-| `auditor serve [--host H] [--port N] [--reload]` | Start the FastAPI backend (for the web frontend). |
+| `auditor serve [--host H] [--port N] [--reload] [--allow-remote]` | Start the FastAPI backend (for the web frontend). Loopback only unless `--allow-remote`. |
 | `auditor providers` | List supported LLM providers. |
+| `auditor db compact [--db PATH]` | Compact the API checkpoint DB (drops legacy sub-agent checkpoints + VACUUM). Run with the API stopped. |
 | `auditor version` | Show the version. |
 
 ### Web API (backend)
@@ -123,6 +128,9 @@ auditor serve            # http://127.0.0.1:8020 — interactive docs at /docs
 ```
 
 Endpoints: `POST /audits` (start), `GET /audits` / `GET /audits/{id}` (list/status),
+`DELETE /audits/{id}` (removes metadata, checkpoints and reports), `POST /audits/{id}/chat`
+(questions about a completed audit's report — no code access), `POST /audits/{id}/resume`
+(continues an audit interrupted by an API restart),
 `GET /audits/{id}/stream` (SSE for progress and clarifications), `POST /audits/{id}/answers`
 (human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md|sarif`,
 `GET /fs/browse` (folder picker), `GET /providers`. State persisted via `SqliteSaver`.
@@ -149,7 +157,11 @@ CORS setup needed; see `frontend/vite.config.ts`). Production build: `vite build
 ## 🧪 Tests
 
 ```bash
-pytest -q          # smoke tests (offline, no LLM)
+make ci                      # everything CI runs: ruff, mypy, pytest, npm ci, vitest, tsc, vite build
+pytest -q                    # backend tests only (offline, no LLM; needs .[dev,api])
+make typecheck               # mypy src (must report 0 errors)
+make coverage                # pytest with coverage report (currently ~91%; no threshold yet)
+cd frontend && npm test      # frontend tests only (Vitest)
 ```
 
 ## 📚 Documentation

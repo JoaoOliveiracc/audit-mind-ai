@@ -1,7 +1,9 @@
 """Persistência: checkpointer do grafo (SqliteSaver) + metadados de auditorias."""
 from __future__ import annotations
 
+import builtins
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -11,20 +13,34 @@ from typing import Any, Optional
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 
-def _db_dir() -> Path:
-    path = Path.home() / ".config" / "auditor"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+def data_dir() -> Path:
+    """Diretório de dados da API: ``AUDITOR_DATA_DIR`` ou ``~/.config/auditor``.
+
+    Resolvido a cada chamada e **sem criar nada** — o diretório só é criado quando um
+    banco é aberto (antes era criado no import, inclusive pelos testes).
+    """
+    configured = os.environ.get("AUDITOR_DATA_DIR")
+    return Path(configured).expanduser() if configured else Path.home() / ".config" / "auditor"
 
 
-CHECKPOINT_DB = _db_dir() / "audits-checkpoints.sqlite"
-META_DB = _db_dir() / "audits.sqlite"
+def checkpoint_db_path() -> Path:
+    return data_dir() / "audits-checkpoints.sqlite"
 
 
-def build_checkpointer() -> SqliteSaver:
-    """Cria o checkpointer SQLite (compartilhável entre threads)."""
-    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+def meta_db_path() -> Path:
+    return data_dir() / "audits.sqlite"
+
+
+def _open(db_path: Path) -> sqlite3.Connection:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL;")
+    return conn
+
+
+def build_checkpointer(db_path: Optional[Path] = None) -> SqliteSaver:
+    """Cria o checkpointer SQLite (compartilhável entre threads)."""
+    conn = _open(db_path or checkpoint_db_path())
     saver = SqliteSaver(conn)
     saver.setup()
     return saver
@@ -33,9 +49,8 @@ def build_checkpointer() -> SqliteSaver:
 class AuditStore:
     """Armazena metadados de auditorias em SQLite (thread-safe via lock)."""
 
-    def __init__(self, db_path: Path = META_DB) -> None:
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
+    def __init__(self, db_path: Optional[Path] = None) -> None:
+        self._conn = _open(db_path or meta_db_path())
         self._lock = threading.Lock()
         self._conn.execute(
             """
@@ -87,6 +102,21 @@ class AuditStore:
             )
             self._conn.commit()
 
+    def mark_orphans_interrupted(self) -> int:
+        """Marca como ``interrupted`` auditorias não-terminais (sem runner após restart)."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE audits SET status = 'interrupted' "
+                "WHERE status IN ('started', 'running', 'waiting_input')"
+            )
+            self._conn.commit()
+            return cur.rowcount
+
+    def delete(self, audit_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM audits WHERE id = ?", (audit_id,))
+            self._conn.commit()
+
     def get(self, audit_id: str) -> Optional[dict]:
         with self._lock:
             cur = self._conn.execute("SELECT * FROM audits WHERE id = ?", (audit_id,))
@@ -102,7 +132,7 @@ class AuditStore:
         return [self._row_to_dict(cols, r) for r in rows]
 
     @staticmethod
-    def _row_to_dict(cols: list[str], row: tuple) -> dict:
+    def _row_to_dict(cols: builtins.list[str], row: tuple) -> dict:
         data = dict(zip(cols, row))
         counts = data.pop("counts_json", None)
         data["counts"] = json.loads(counts) if counts else None

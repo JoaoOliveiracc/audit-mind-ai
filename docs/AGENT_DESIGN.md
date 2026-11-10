@@ -32,10 +32,28 @@ All decision points use **Pydantic structured output**:
 
 - `with_structured_output(ClarifyingQuestions)` — clarification questions.
 - `with_structured_output(AuditPlan)` — dimension selection.
-- `create_react_agent(..., response_format=DimensionResult)` — findings.
+- `with_structured_output(DimensionResult)` — findings, in a **separate structuring call** that
+  receives only the investigator's text report (see §3.1).
+- `with_structured_output(Verdict)` — adversarial judge verdicts.
 
 Advantages: automatic validation, provider retries on invalid schema,
 zero fragile string parsing. It is LangChain's current recommended practice.
+
+### 3.1 Investigation and structuring are decoupled
+
+Earlier versions used `create_react_agent(..., response_format=DimensionResult)`. The terminal
+structured-output step re-sent the whole tool-call history to the LLM, which was expensive and
+produced boundary errors with some providers (leaked tool calls, `tool_calls` without a response).
+Now the ReAct agent only investigates and writes a text report; a second, isolated
+`with_structured_output` call converts that report (`STRUCTURE_PROMPT`).
+
+### 3.2 `create_agent` + budget middleware (G44)
+
+Investigators are built with `langchain.agents.create_agent` (the deprecated
+`langgraph.prebuilt.create_react_agent` was removed). The step budget is a small
+`AgentMiddleware` — wrap-up notice on the last model calls, clean stop with our own marker —
+because `create_agent` has no `remaining_steps` and raises on `recursion_limit`. Extra
+behaviors (retries, summarization, PII redaction) can be added to the same middleware list.
 
 ## 4. Read-only and safe tools
 
@@ -66,13 +84,15 @@ creative variability is not desirable here.
 - Dimension validation against the enum, with a _fallback_ to a default set.
 - JSON-safe serialization of the state (compatible with persistent checkpointers).
 - Recursion limits on the sub-agents (avoids infinite tool-calling loops).
+- **Anti-hallucination:** deterministic evidence check on disk (`verify`) and an optional
+  adversarial LLM judge (`adversarial`) before synthesis.
 
 ## 8. Deliberately deferred decisions (trade-offs)
 
 | Decision | v0.1 | Why | Evolution |
 | --- | --- | --- | --- |
-| Dimension parallelism | Sequential | Cost predictability and readable logs | *Send API* (ROADMAP) |
-| Checkpointer | `MemorySaver` | Simplicity | `SqliteSaver`/`Postgres` |
+| Dimension parallelism | ✅ Thread pool (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`) | Simple, deterministic aggregation, rate-limit friendly | *Send API* if fan-out must be checkpointed per branch |
+| Checkpointer | `MemorySaver` (CLI) · `SqliteSaver` (API) | Simplicity locally, persistence for the web UI | `Postgres` for multi-instance; disable sub-agent checkpoints (G29) |
 | External scanners | Absent | Keep zero toolchain dependency | Optional integration |
 | Multi-provider | ✅ via `init_chat_model` | Flexibility without provider lock-in | Per-provider presets |
 
@@ -92,9 +112,12 @@ creative variability is not desirable here.
 - [x] Human-in-the-loop with `interrupt` + checkpointer.
 - [x] Isolation of question generation from the interruption point (avoids double calls).
 - [x] Pydantic structured output at every decision point.
-- [x] ReAct sub-agents with tools and `response_format`.
+- [x] ReAct sub-agents with tools + decoupled structuring step.
 - [x] Least-privilege tools (read-only, scoped).
 - [x] Centralized and versionable prompts.
 - [x] Externalized configuration (12-factor).
 - [x] Per-stage failure handling.
 - [x] Offline tests that do not depend on the LLM.
+- [x] Evidence verification + optional adversarial judge.
+- [ ] CI enforcing lint/tests/type-check (G37).
+- [x] Tool scoping enforced in every tool, including `search_code` (G25/G26).

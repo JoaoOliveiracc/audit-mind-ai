@@ -10,16 +10,28 @@
 - Interactive CLI (Typer + Rich).
 - Offline smoke tests.
 
+## v0.1.x — Hardening (from the 2026-11-10 analysis)
+- [x] Enforce root scoping in `search_code` (glob `..`, symlinks) and fix ancestor `ignore_dirs` matching (G25/G26/G30).
+- [x] Reconcile/resume orphaned audits after API restart; `Host` validation against DNS rebinding (G31/G27).
+- [ ] Investigator step budget with forced final report; text extraction in synthesis (G32/G33).
+- [x] CI (lint, tests, type-check, frontend build) and mypy clean (G37/G38) — `.github/workflows/ci.yml`, `make ci`.
+- [ ] Dogfooding: run the auditor on its own repo in CI and upload the SARIF to Code Scanning (needs an LLM secret).
+
+See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
+
 ## v0.2 — Scale and performance
-- [ ] **Parallelize investigators** via LangGraph's *Send API* (fan-out per dimension).
-- [ ] **Persistent checkpointer** (`SqliteSaver`) to pause/resume audits.
+- [x] **Parallelize investigators** — delivered with a thread pool (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`).
+- [x] **Persistent checkpointer** (`SqliteSaver`) — delivered in the API mode.
+- [x] Stop persisting sub-agent checkpoints; manual deletion + `auditor db compact` (G28/G29).
+- [x] Migrate investigators from deprecated `create_react_agent` to `langchain.agents.create_agent` (G44).
 - [ ] Cache file reads across dimensions.
 - [ ] Intelligent summarization/selection of files in very large projects (map-reduce).
 
 ## v0.3 — Analysis depth
 - [ ] Optional integration with external scanners (Semgrep, Trivy, gitleaks, pip-audit/npm-audit).
 - [ ] Reconciliation: scanner findings + LLM findings, with deduplication.
-- [ ] Adversarial verification of findings (a second agent tries to refute each finding).
+- [x] Deterministic evidence verification (`verify` node) — delivered.
+- [x] Adversarial verification of findings (skeptical LLM judge, `adversarial` node) — delivered (opt-in).
 - [ ] Git history analysis (hotspots, authors, churn).
 
 ## v0.4 — Experience and integration
@@ -27,6 +39,7 @@
 - [x] Structured JSON export of findings — **delivered** (`GET /audits/{id}/findings`).
 - [x] Web frontend (Vite + React) — **MVP delivered (F4)**: new audit, live execution (SSE) and findings dashboard. In `frontend/` (migrated from the original Next.js `web/`, now removed).
 - [ ] Frontend F5–F6: rich history, robust SSE reconnection, empty/error states, responsive.
+- [x] SARIF 2.1.0 export (GitHub Code Scanning inline alerts) — delivered.
 - [ ] GitHub / GitLab action (audit on PR with inline comments).
 - [ ] Comparison between audits (health diff over time).
 
@@ -37,6 +50,6 @@
 - [ ] Signed audit trail (provenance of findings).
 
 ## Ideas under evaluation
-- "Chat with the report" mode (questions about the findings after the audit).
+- [x] "Chat with the report" mode (questions about the findings after the audit) — `POST /audits/{id}/chat` + ChatDock (G42).
 - Prioritization by estimated remediation effort.
 - Technical debt estimation in hours.

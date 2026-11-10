@@ -6,23 +6,12 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..llm import get_llm
+from ._messages import content_text
 from ..prompts.templates import SYNTHESIS_PROMPT, SYSTEM_PERSONA
-from ..state import SEVERITY_WEIGHT, AuditState, Severity
+from ..scoring import compute_health_score, severity_counts  # reexportados (compat.)
+from ..state import AuditState
 
-
-def compute_health_score(findings: list[dict]) -> int:
-    """Calcula uma pontuação de 0 a 100 a partir da severidade dos achados."""
-    penalty = sum(SEVERITY_WEIGHT.get(f.get("severity", "info"), 0) for f in findings)
-    return max(0, 100 - min(100, penalty))
-
-
-def severity_counts(findings: list[dict]) -> dict[str, int]:
-    """Conta achados por severidade."""
-    counts = {s.value: 0 for s in Severity}
-    for f in findings:
-        sev = f.get("severity", Severity.INFO.value)
-        counts[sev] = counts.get(sev, 0) + 1
-    return counts
+__all__ = ["compute_health_score", "severity_counts", "synthesis_node"]
 
 
 def synthesis_node(state: AuditState) -> dict:
@@ -43,7 +32,7 @@ def synthesis_node(state: AuditState) -> dict:
     response = llm.invoke(
         [SystemMessage(content=SYSTEM_PERSONA), HumanMessage(content=prompt)]
     )
-    summary_text = response.content if isinstance(response.content, str) else str(response.content)
+    summary_text = content_text(response.content)
 
     return {
         "health_score": score,

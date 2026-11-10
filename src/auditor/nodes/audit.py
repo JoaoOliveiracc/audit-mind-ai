@@ -4,37 +4,41 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
-from langchain_core.messages import AIMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import hook_config
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from rich.console import Console
 
 from ..config import get_settings
+from ..events import emit as _emit  # nome local mantido: ponto de patch dos testes
 from ..llm import get_llm
-from ..prompts.templates import DIMENSION_GUIDANCE, INVESTIGATOR_PROMPT, STRUCTURE_PROMPT
+from ..prompts.templates import (
+    DIMENSION_GUIDANCE,
+    INVESTIGATOR_PROMPT,
+    SALVAGE_PROMPT,
+    STRUCTURE_PROMPT,
+    WRAP_UP_NOTICE,
+)
 from ..state import AuditState, DimensionResult
 from ..tools.filesystem import make_project_tools
+from ._messages import content_text
 
-try:  # disponível apenas em versões recentes do LangGraph
-    from langgraph.config import get_stream_writer
-except ImportError:  # pragma: no cover
-    get_stream_writer = None
 
 _console = Console(stderr=True)
 
+# Orçamento do investigador (G32/G44): AUDITOR_MAX_INVESTIGATOR_STEPS ≈ 2 passos por tool
+# call → até steps // 2 chamadas do modelo. As _WRAP_UP_CALLS últimas recebem o aviso para
+# concluir; ao fim, o middleware encerra com o NOSSO marcador (sem depender de texto upstream).
+_WRAP_UP_CALLS = 2
+BUDGET_EXHAUSTED_MARKER = "[auditor] orçamento de chamadas do modelo esgotado"
+_TOOL_RESULT_CHARS = 2_000     # por resultado de ferramenta no histórico de resgate
+_TRANSCRIPT_CHARS = 60_000     # teto do histórico de resgate (mantém o mais recente)
+PARTIAL_PREFIX = "⚠️ Investigação parcial (orçamento de passos esgotado). "
 
-def _emit(data: dict) -> None:
-    """Emite um evento no stream 'custom' do LangGraph (para a API/SSE).
 
-    No-op seguro: fora de um run com stream_mode='custom' (ex.: CLI, testes),
-    a escrita é simplesmente descartada.
-    """
-    if get_stream_writer is None:
-        return
-    try:
-        get_stream_writer()(data)
-    except Exception:
-        pass
 
 
 def _final_report(messages: list) -> str:
@@ -42,15 +46,90 @@ def _final_report(messages: list) -> str:
     for msg in reversed(messages):
         if not isinstance(msg, AIMessage):
             continue
-        content = msg.content
-        if isinstance(content, list):  # alguns provedores retornam blocos de conteúdo
-            content = "".join(
-                part.get("text", "") if isinstance(part, dict) else str(part)
-                for part in content
-            )
-        if content and content.strip():
+        content = content_text(msg.content)  # alguns provedores retornam blocos
+        if content.strip():
             return content
     return ""
+
+
+def is_partial(result: DimensionResult) -> bool:
+    """True se o relatório da dimensão veio do resgate (orçamento esgotado)."""
+    return result.summary.startswith(PARTIAL_PREFIX)
+
+
+def _budget_exhausted(messages: list) -> bool:
+    last = messages[-1] if messages else None
+    return (isinstance(last, AIMessage) and not last.tool_calls
+            and content_text(last.content) == BUDGET_EXHAUSTED_MARKER)
+
+
+def _condensed_transcript(messages: list) -> str:
+    """Histórico enxuto para o resgate: textos do agente, chamadas e resultados truncados."""
+    parts: list[str] = []
+    for msg in messages:
+        if isinstance(msg, AIMessage):
+            text = content_text(msg.content).strip()
+            if text and text != BUDGET_EXHAUSTED_MARKER:
+                parts.append(f"[investigador] {text}")
+            for call in msg.tool_calls:
+                args = json.dumps(call.get("args", {}), ensure_ascii=False)
+                parts.append(f"[chamada] {call['name']}({args})")
+        elif isinstance(msg, ToolMessage):
+            text = content_text(msg.content)
+            if len(text) > _TOOL_RESULT_CHARS:
+                text = text[:_TOOL_RESULT_CHARS] + "\n… [truncado]"
+            parts.append(f"[resultado {msg.name}]\n{text}")
+    transcript = "\n\n".join(parts)
+    return transcript[-_TRANSCRIPT_CHARS:]
+
+
+def _salvage_report(llm, dimension: str, messages: list) -> str:
+    """Uma chamada sem ferramentas que escreve o relatório com a evidência já coletada.
+
+    O histórico (dado não confiável, vem do código auditado) vai delimitado; delimitadores
+    dentro dele são neutralizados para não "fechar" o bloco. Histórico vazio → sem chamada.
+    """
+    transcript = _condensed_transcript(messages)
+    if not transcript.strip():
+        return ""
+    transcript = transcript.replace("<historico>", "‹historico›").replace("</historico>", "‹/historico›")
+    response = llm.invoke([
+        SystemMessage(content=SALVAGE_PROMPT.format(dimension=dimension)),
+        HumanMessage(content=f"<historico>\n{transcript}\n</historico>"),
+    ])
+    return content_text(response.content)
+
+
+def _model_calls(messages: list) -> int:
+    """Chamadas do modelo já feitas = ``AIMessage``s no histórico (sem estado extra)."""
+    return sum(1 for m in messages if isinstance(m, AIMessage))
+
+
+class _BudgetMiddleware(AgentMiddleware):
+    """Orçamento de chamadas do modelo para o investigador (substitui ``remaining_steps``).
+
+    - ``wrap_model_call``: nas últimas ``_WRAP_UP_CALLS`` chamadas, acrescenta o aviso de
+      conclusão ao fim da entrada (o system prompt continua primeiro).
+    - ``before_model``: esgotado o orçamento, encerra com ``BUDGET_EXHAUSTED_MARKER`` —
+      sem chegar ao ``recursion_limit``, que no ``create_agent`` lança e perde o histórico.
+    """
+
+    def __init__(self, max_model_calls: int) -> None:
+        super().__init__()
+        self.max_model_calls = max_model_calls
+
+    @hook_config(can_jump_to=["end"])
+    def before_model(self, state, runtime) -> dict[str, Any] | None:
+        if _model_calls(state["messages"]) >= self.max_model_calls:
+            return {"messages": [AIMessage(content=BUDGET_EXHAUSTED_MARKER)], "jump_to": "end"}
+        return None
+
+    def wrap_model_call(self, request, handler):
+        if self.max_model_calls - _model_calls(request.messages) <= _WRAP_UP_CALLS:
+            request = request.override(
+                messages=[*request.messages, HumanMessage(content=WRAP_UP_NOTICE)]
+            )
+        return handler(request)
 
 
 def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settings) -> DimensionResult | None:
@@ -72,21 +151,33 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False),
     )
-    agent = create_react_agent(llm, tools=tools, prompt=prompt)
+    max_calls = max(2, settings.max_investigator_steps // 2)
+    # checkpointer=False (AD-001): o sub-agente nunca herda o checkpointer do grafo
+    # pai — senão cada passo ReAct (com trechos de código) é persistido.
+    agent = create_agent(llm, tools=tools, system_prompt=prompt,
+                         middleware=[_BudgetMiddleware(max_calls)], checkpointer=False)
     result = agent.invoke(
-        {"messages": [("user", f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
-        config={"recursion_limit": settings.max_investigator_steps},
+        {"messages": [HumanMessage(
+            content=f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
+        # Rede de segurança: o _BudgetMiddleware encerra muito antes (≈ 3–4 nós por volta).
+        config={"recursion_limit": 4 * max_calls + 10},
     )
 
-    report = _final_report(result.get("messages", []))
+    messages = result.get("messages", [])
+    partial = _budget_exhausted(messages)
+    # G32: orçamento esgotado → resgata o relatório em vez de descartar a investigação.
+    report = _salvage_report(llm, dimension, messages) if partial else _final_report(messages)
     if not report.strip():
         return None
 
     structurer = llm.with_structured_output(DimensionResult)
-    return structurer.invoke([
+    dimension_result = structurer.invoke([
         ("system", STRUCTURE_PROMPT.format(dimension=dimension)),
         ("user", report),
     ])
+    if partial:
+        dimension_result.summary = PARTIAL_PREFIX + dimension_result.summary
+    return dimension_result
 
 
 def audit_node(state: AuditState) -> dict:
@@ -143,8 +234,13 @@ def audit_node(state: AuditState) -> dict:
                 _emit({"type": "investigator", "dimension": dim, "status": "empty",
                        "index": idx, "total": total})
                 continue
-            _console.print(f"[green]  ✓[/green] {len(dr.findings)} achado(s) em '{dim}'")
-            _emit({"type": "investigator", "dimension": dim, "status": "done",
+            if is_partial(dr):
+                _console.print(f"[yellow]  ⚠ {len(dr.findings)} achado(s) em '{dim}' — investigação "
+                               "parcial (orçamento de passos esgotado)[/yellow]")
+            else:
+                _console.print(f"[green]  ✓[/green] {len(dr.findings)} achado(s) em '{dim}'")
+            _emit({"type": "investigator", "dimension": dim,
+                   "status": "partial" if is_partial(dr) else "done",
                    "index": idx, "total": total, "findings_count": len(dr.findings)})
 
     # Agrega na ordem do plano (determinística, independente da conclusão).

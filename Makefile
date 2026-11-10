@@ -1,7 +1,7 @@
-.PHONY: install hooks test lint run api frontend dev frontend-install clean
+.PHONY: install hooks test lint typecheck coverage ci frontend-ci run api frontend dev frontend-install clean
 
 install: hooks
-	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev]"
+	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev,api]"
 
 hooks:
 	@# Ativa o hook de segurança versionado (bloqueia commit de .env e segredos).
@@ -13,6 +13,21 @@ test:
 lint:
 	. .venv/bin/activate && ruff check src tests
 
+typecheck:
+	. .venv/bin/activate && mypy src
+
+coverage:
+	@# Cobertura do backend (só reporta; sem mínimo por enquanto — G39)
+	. .venv/bin/activate && pytest -q --cov=auditor --cov-report=term-missing
+
+frontend-ci:
+	@# Mesmos passos do job "frontend" do CI (npm ci limpo + testes + tsc + build)
+	cd frontend && npm ci --no-audit --no-fund && npm test && npm run build
+
+ci: lint typecheck test frontend-ci
+	@# Espelho local de .github/workflows/ci.yml — para no primeiro erro
+	@echo "✓ make ci: todos os gates passaram"
+
 run:
 	@# uso: make run PROJ=/caminho GOAL="foco"
 	. .venv/bin/activate && auditor audit "$(PROJ)" $(if $(GOAL),--goal "$(GOAL)",)
@@ -22,7 +37,7 @@ api:
 	. .venv/bin/activate && auditor serve --reload
 
 frontend-install:
-	cd frontend && npm install
+	cd frontend && npm ci
 
 frontend:
 	@# Frontend Vite/React em http://localhost:5173 (proxy da API -> :8020)

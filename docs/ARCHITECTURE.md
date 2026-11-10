@@ -4,114 +4,167 @@
 
 Audit Mind AI is a **state graph (LangGraph)** where each node is a stage of the
 audit. The state is shared and accumulated throughout the flow. The audit phase
-delegates to **ReAct sub-agents** (one per dimension), which explore the code
-with read-only tools and return structured findings.
+delegates to **ReAct sub-agents** (one per dimension, running in parallel), which
+explore the code with read-only tools; their findings are then checked against the
+code on disk (and optionally by an adversarial LLM judge) before the report.
 
 ```
-                    ┌─────────────┐
-      START ───────▶│  discovery  │  scans the project, detects stack + inventory
-                    └──────┬──────┘
-                           ▼
                     ┌──────────────┐
-                    │plan_questions│ LLM generates clarification questions
+      START ───────▶│  discovery   │  scans the project, detects stack + inventory
                     └──────┬───────┘
                            ▼
-                    ┌─────────────┐
-                    │   clarify   │ ⏸ interrupt → user responds (human-in-the-loop)
-                    └──────┬──────┘
+                    ┌──────────────┐
+                    │plan_questions│  LLM generates clarification questions
+                    └──────┬───────┘
                            ▼
-                    ┌─────────────┐
-                    │  planning   │ LLM selects applicable dimensions
-                    └──────┬──────┘
+                    ┌──────────────┐
+                    │   clarify    │  ⏸ interrupt → user responds (human-in-the-loop)
+                    └──────┬───────┘
                            ▼
-                    ┌─────────────┐   for each dimension:
-                    │    audit    │   create_react_agent(tools) → DimensionResult
-                    └──────┬──────┘   (read_file, list_directory, search_code)
+                    ┌──────────────┐
+                    │   planning   │  LLM selects applicable dimensions
+                    └──────┬───────┘
                            ▼
-                    ┌─────────────┐
-                    │  synthesis  │ health score + executive summary
-                    └──────┬──────┘
+                    ┌──────────────┐  per dimension, in a thread pool:
+                    │    audit     │   1) create_agent(tools, budget middleware) → text report
+                    └──────┬───────┘   2) with_structured_output → DimensionResult
                            ▼
-                    ┌─────────────┐
-                    │   report    │ Markdown + HTML → disk
-                    └──────┬──────┘
+                    ┌──────────────┐
+                    │    verify    │  deterministic evidence check on disk (no LLM)
+                    └──────┬───────┘
+                           ▼
+                    ┌──────────────┐
+                    │ adversarial  │  skeptical LLM judge (optional, off by default)
+                    └──────┬───────┘
+                           ▼
+                    ┌──────────────┐
+                    │  synthesis   │  health score + executive summary
+                    └──────┬───────┘
+                           ▼
+                    ┌──────────────┐
+                    │    report    │  Markdown + HTML + SARIF → disk
+                    └──────┬───────┘
                            ▼
                           END
 ```
+
+Entry points: **CLI** (`auditor audit`, `MemorySaver`) and **API** (`auditor serve`,
+FastAPI + SSE, `SqliteSaver`). The API only answers loopback `Host`s (`api/security.py`, AD-002);
+on startup it marks orphaned audits `interrupted`, and `AuditRunner(resume=True)` continues them
+from the last checkpoint (pending interrupt → re-ask; pending nodes → `stream(None)`). The Vite/React frontend in `frontend/` consumes the API.
 
 ## 2. Components
 
 | Module | Responsibility |
 | --- | --- |
-| `config.py` | Settings via `pydantic-settings` (env / `.env`). |
-| `llm.py` | Memoized `ChatAnthropic` factory. |
+| `config.py` | Settings via `pydantic-settings` (env / `.env` / `~/.config/auditor/.env`); provider → credential/package maps. |
+| `llm.py` | Multi-provider factory (`init_chat_model`), memoized per `(provider, model, params)`; per-audit override. |
+| `logging_config.py` | Idempotent logging setup (`AUDITOR_LOG_LEVEL`). |
+| `events.py` | Single `emit` (LangGraph custom stream) + `NODE_LABELS`/`NODE_ICONS` shared by nodes, API and CLI. |
+| `scoring.py` | Health score + severity counting (with/without zeros) shared by synthesis, report, CLI and API. |
 | `state.py` | `AuditState` (TypedDict + reducers) and Pydantic domain models. |
 | `tools/project.py` | Stack detection and inventory construction. |
 | `tools/filesystem.py` | Scoped read-only tools (read/list/search). |
-| `prompts/templates.py` | All prompts, centralized. |
+| `prompts/templates.py` | All prompts, centralized (persona, investigator, structuring, judge lenses). |
 | `nodes/*` | One file per graph node. |
 | `graph.py` | Graph assembly and compilation. |
-| `report/renderer.py` | Markdown and HTML rendering (Jinja2). |
+| `report/renderer.py` · `report/sarif.py` | Markdown/HTML (Jinja2, autoescape) and SARIF 2.1.0. |
 | `cli.py` | Terminal interface (Typer + Rich) and interrupt loop. |
+| `api/*` | FastAPI routes, background runner (thread per audit), SQLite store, schemas, retention (delete/compact). |
 
 ## 3. Graph state
 
-`AuditState` is a `TypedDict` with annotated _reducers_:
+`AuditState` is a `TypedDict`. Fields with _reducers_:
 
-- `messages: Annotated[list, add_messages]` — conversation history.
-- `findings: Annotated[list, operator.add]` — accumulates findings.
+- `messages: Annotated[list, add_messages]` — conversation history (currently unused by nodes).
 - `dimension_summaries: Annotated[list, operator.add]` — accumulates summaries.
 
-The remaining fields are replaced by direct assignment (last write wins).
-Enums (e.g., `Severity`) are serialized to string via `model_dump(mode="json")`
-to keep the state JSON-serializable and compatible with persistent checkpointers.
+`findings` is **not** additive: `audit` writes it, and `verify`/`adversarial` overwrite it
+with the filtered list. All other fields are last-write-wins. Enums (e.g., `Severity`) are
+serialized via `model_dump(mode="json")` to keep the state JSON-serializable and compatible
+with persistent checkpointers. `provider`/`model` live in the state so concurrent audits can
+use different LLMs.
 
 ## 4. Human-in-the-loop
 
 The `clarify` node calls `interrupt(payload)`. Because `interrupt` **re-executes
 the node from the beginning** when resuming, question generation (which makes an
-LLM call) was isolated in the preceding `plan_questions` node, avoiding duplicate
-calls. Resumption occurs via `Command(resume=answers)` triggered by the CLI.
+LLM call) is isolated in the preceding `plan_questions` node, avoiding duplicate
+calls. Resumption occurs via `Command(resume=answers)` — from the CLI prompt loop or
+from `POST /audits/{id}/answers` in the API.
 
-A **checkpointer** is mandatory for `interrupt` to work. v0.1 uses `MemorySaver`
-(in memory). For persistence across runs, swap it for
-`SqliteSaver`/`PostgresSaver` in `build_graph`.
+A **checkpointer** is mandatory for `interrupt`. The CLI uses `MemorySaver`; the API uses
+`SqliteSaver` (`~/.config/auditor/audits-checkpoints.sqlite`).
+
+Sub-agents are created with `checkpointer=False` (decision AD-001 in `.specs/STATE.md`): only the
+top-level graph is checkpointed. Audits are deleted manually (`DELETE /audits/{id}` →
+`auditor.api.retention.delete_audit`: reports → checkpoints → metadata), and `auditor db compact`
+removes legacy sub-graph checkpoints.
 
 ## 5. ReAct sub-agents (audit phase)
 
-Each dimension is audited by an agent created with `create_react_agent`:
+Each dimension is audited in two decoupled phases:
 
-- **Tools:** `read_file`, `list_directory`, `search_code` (scoped to the root).
-- **`response_format=DimensionResult`:** forces structured output validated by Pydantic.
-- **`recursion_limit`:** limits the reasoning steps (env `AUDITOR_MAX_INVESTIGATOR_STEPS`).
-- **Failure isolation:** an exception in one dimension is caught and recorded, without aborting the others.
+1. **Investigation** — `langchain.agents.create_agent(llm, tools, system_prompt, middleware=[budget])` with **no** `response_format`.
+   Tools: `read_file`, `list_directory`, `search_code`. The agent ends by writing a textual report.
+2. **Structuring** — a separate `llm.with_structured_output(DimensionResult)` call receives only
+   the report text (`STRUCTURE_PROMPT`), not the tool-call history. This avoids the
+   structured-output step re-sending the whole tool history and the related boundary errors.
 
-> **Evolution note:** the investigators run sequentially in v0.1 for cost
-> predictability. Parallelization via LangGraph's *Send API* is mapped out in the
-> ROADMAP.
+- **Parallelism:** investigators run in a `ThreadPoolExecutor`
+  (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`, default 4). SSE/console progress is emitted from the
+  main thread (where the LangGraph stream writer is valid); aggregation follows the plan order.
+- **Step budget (G32/G44):** `AUDITOR_MAX_INVESTIGATOR_STEPS` (default 80, ≈ 2 per tool call) gives
+  `max(2, steps // 2)` model calls. A `_BudgetMiddleware` counts model calls (the `AIMessage`s in the
+  history): on the last 2 calls `wrap_model_call` appends a wrap-up notice; when the budget is spent
+  `before_model` ends the run with our own `BUDGET_EXHAUSTED_MARKER` (`jump_to="end"`). `recursion_limit`
+  (`4 × calls + 10`) is only a safety net — in `create_agent` hitting it raises `GraphRecursionError`
+  and loses the history. On the marker, one **salvage** call without tools writes the report from a
+  condensed transcript (tool results ≤ 2 000 chars each, ≤ 60 000 total, inside `<historico>`
+  delimiters as untrusted data); the dimension summary is prefixed `⚠️ Investigação parcial…` and the
+  SSE event status is `partial`.
+- **Failure isolation:** an exception in one dimension is recorded in its summary without
+  aborting the others.
 
-## 6. Tool safety
+## 6. Evidence verification and adversarial judge
 
-`_safe_resolve` resolves paths under the root and rejects any target outside it
-(protection against path traversal, e.g., `../../etc/passwd`). Binary files and
-files above `AUDITOR_MAX_FILE_BYTES` are ignored. Build/dependency directories
-(`node_modules`, `.git`, `venv`, etc.) are skipped during the scan.
+- `verify` (no LLM): the cited file must exist inside the root and the `evidence` snippet must
+  appear in it (tolerant matching). Unsubstantiated findings are **dropped**; findings without
+  file/evidence are kept with `confidence ≤ 0.5`.
+- `adversarial` (optional, parallel up to `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`; aggregation in input
+  order): for findings with a file and severity ≥ threshold, a skeptical judge
+  reads the real code window and tries to refute them (1–3 lenses, majority vote). Refuted →
+  dropped; uncertain → confidence lowered.
 
-## 7. Health score
+## 7. Tool safety
+
+`_safe_resolve` resolves paths (following symlinks) under the root and rejects any target
+outside it (path traversal, e.g., `../../etc/passwd`). All three tools enforce it: `search_code`
+additionally rejects absolute globs or globs with a `..` component and skips files whose real
+path (symlink target) is outside the root. Binary files and files above `AUDITOR_MAX_FILE_BYTES`
+are skipped; build/dependency directories (`node_modules`, `.git`, `venv`, …) are ignored,
+matched against the path **relative** to the root (regression tests: `tests/test_tools_scoping.py`).
+`search_code` walks with `os.walk(followlinks=False)`, pruning ignored dirs before listing them (and,
+for globs without `**`, anything deeper than the pattern), and matches globs per segment — on a tree
+with 20 000 files in `node_modules`, `**/*` went from ~2.4 s to ~7 ms per call (G34).
+
+## 8. Health score
 
 `compute_health_score` starts at 100 and subtracts weights by severity
 (`critical=40, high=20, medium=8, low=3, info=0`), with a floor of 0. It is a
 heuristic indicator for executive reading, not a formal metric.
 
-## 8. Data flow (summary)
+## 9. Data flow (summary)
 
 ```
-project_path
-  → stack_profile + inventory        (discovery)
-  → clarifying_questions             (plan_questions)
-  → user_context                     (clarify)
-  → plan.dimensions                  (planning)
-  → findings[] + dimension_summaries (audit)
-  → health_score + executive_summary (synthesis)
-  → report_markdown_path + report_html_path (report)
+project_path (+ provider, model, user_goal)
+  → stack_profile + inventory          (discovery)
+  → clarifying_questions               (plan_questions)
+  → user_context                       (clarify)
+  → plan.dimensions + focus_notes      (planning)
+  → findings[] + dimension_summaries   (audit)
+  → findings[] (filtered) + verification   (verify)
+  → findings[] (filtered) + adversarial    (adversarial)
+  → health_score + executive_summary   (synthesis)
+  → report_{markdown,html,sarif}_path  (report)
 ```

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.types import interrupt
@@ -27,9 +28,9 @@ def plan_questions_node(state: AuditState) -> dict:
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False, indent=2),
         inventory=state.get("inventory", "")[:6000],
     )
-    result: ClarifyingQuestions = llm.invoke(
+    result = cast(ClarifyingQuestions, llm.invoke(
         [SystemMessage(content=SYSTEM_PERSONA), HumanMessage(content=prompt)]
-    )
+    ))
     return {"clarifying_questions": [q.model_dump() for q in result.questions]}
 
 

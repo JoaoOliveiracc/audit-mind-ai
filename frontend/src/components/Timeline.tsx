@@ -45,9 +45,11 @@ function StackChips({ profile }: { profile: StackProfile }) {
 }
 
 function DimensionRow({ d }: { d: DimensionProgress }) {
-  const done = d.status === 'done' || d.status === 'empty'
+  const done = d.status === 'done' || d.status === 'partial' || d.status === 'empty'
   const icon = done ? '✓' : d.status === 'error' ? '✗' : '◌'
-  const tone = done
+  const tone = d.status === 'partial'
+    ? 'text-sev-medium'
+    : done
     ? 'text-emerald-400'
     : d.status === 'error'
       ? 'text-sev-critical'
@@ -60,10 +62,13 @@ function DimensionRow({ d }: { d: DimensionProgress }) {
         <span className="eyebrow">
           {d.index}/{d.total}
         </span>
-        {d.status === 'done' && (
+        {(d.status === 'done' || d.status === 'partial') && (
           <span className="eyebrow">
             {d.findings_count ?? 0} achado{(d.findings_count ?? 0) === 1 ? '' : 's'}
           </span>
+        )}
+        {d.status === 'partial' && (
+          <span className="eyebrow !text-sev-medium">parcial — orçamento esgotado</span>
         )}
         {d.status === 'empty' && <span className="eyebrow">sem resultado estruturado</span>}
         {d.status === 'error' && <span className="eyebrow !text-sev-critical">falhou</span>}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from typing import cast
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -28,9 +29,9 @@ def planning_node(state: AuditState) -> dict:
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False, indent=2),
         user_goal=state.get("user_goal") or "(não especificado)",
     )
-    plan: AuditPlan = llm.invoke(
+    plan = cast(AuditPlan, llm.invoke(
         [SystemMessage(content=SYSTEM_PERSONA), HumanMessage(content=prompt)]
-    )
+    ))
 
     dimensions = [d for d in plan.dimensions if d in _VALID_DIMENSIONS]
     if not dimensions:

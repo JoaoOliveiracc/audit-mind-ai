@@ -14,6 +14,8 @@ from rich.table import Table
 
 from . import __version__
 from .config import get_settings
+from .events import NODE_ICONS, NODE_LABELS
+from .scoring import severity_counts
 from .graph import build_graph
 from .llm import LLMConfigError, get_llm
 from .logging_config import setup_logging
@@ -21,17 +23,6 @@ from .logging_config import setup_logging
 app = typer.Typer(add_completion=False, help="Audit Mind AI — auditoria de projetos com LangGraph.")
 console = Console()
 
-_NODE_LABELS = {
-    "discovery": "🔎 Descoberta e detecção de stack",
-    "plan_questions": "❓ Gerando perguntas de esclarecimento",
-    "clarify": "💬 Esclarecimentos",
-    "planning": "🗺️  Planejando dimensões de auditoria",
-    "audit": "🕵️  Executando investigadores",
-    "verify": "🔬 Verificando evidência dos achados",
-    "adversarial": "⚖️  Julgamento adversarial dos achados",
-    "synthesis": "🧠 Consolidando e pontuando",
-    "report": "📄 Gerando relatório",
-}
 
 
 @app.callback()
@@ -71,7 +62,7 @@ def _run(graph, inp, config):
         if "__interrupt__" in chunk:
             return chunk["__interrupt__"]
         for node in chunk:
-            label = _NODE_LABELS.get(node, node)
+            label = f"{NODE_ICONS.get(node, '•')} {NODE_LABELS.get(node, node)}"
             console.print(f"[green]✓[/green] {label}")
     return None
 
@@ -166,11 +157,9 @@ def _print_summary(state: dict) -> None:
     table = Table(title="Distribuição de Achados", show_header=True, header_style="bold")
     table.add_column("Severidade")
     table.add_column("Qtde", justify="right")
-    counts: dict[str, int] = {}
-    for f in findings:
-        counts[f.get("severity", "info")] = counts.get(f.get("severity", "info"), 0) + 1
+    counts = severity_counts(findings)
     for sev in ("critical", "high", "medium", "low", "info"):
-        table.add_row(sev, str(counts.get(sev, 0)))
+        table.add_row(sev, str(counts[sev]))
 
     console.print()
     console.print(
@@ -224,13 +213,33 @@ def providers():
     )
 
 
+_LOCAL_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host da API (padrão: apenas local)."),
     port: int = typer.Option(8020, help="Porta da API."),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload (desenvolvimento)."),
+    allow_remote: bool = typer.Option(
+        False, "--allow-remote",
+        help="Permite bind em interface não-local (a API NÃO tem autenticação).",
+    ),
 ):
     """Sobe a API FastAPI (para o frontend web)."""
+    # AD-002: a API lê o filesystem do host e não tem autenticação — exposição
+    # fora do loopback só com opt-in explícito.
+    if host not in _LOCAL_BIND_HOSTS:
+        if not allow_remote:
+            console.print(
+                f"[red]Recusado:[/red] '{host}' não é uma interface local e a API não tem "
+                "autenticação. Use --allow-remote se a exposição for intencional."
+            )
+            raise typer.Exit(code=2)
+        console.print(
+            f"[bold yellow]Aviso:[/bold yellow] API exposta em '{host}' sem autenticação. "
+            "Clientes remotos só são aceitos se o host deles estiver em AUDITOR_ALLOWED_HOSTS."
+        )
     try:
         import uvicorn
     except ImportError:
@@ -238,6 +247,45 @@ def serve(
         raise typer.Exit(code=1)
     console.print(f"[green]Audit Mind AI API[/green] em http://{host}:{port}  (docs em /docs)")
     uvicorn.run("auditor.api.main:app", host=host, port=port, reload=reload)
+
+
+db_app = typer.Typer(help="Manutenção do banco local da API (AUDITOR_DATA_DIR, padrão ~/.config/auditor).")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("compact")
+def db_compact(
+    db: Optional[Path] = typer.Option(
+        None, "--db", help="Banco de checkpoints (padrão: $AUDITOR_DATA_DIR/audits-checkpoints.sqlite)."
+    ),
+):
+    """Remove checkpoints de sub-agentes (legado) e compacta o banco. Rode com a API parada."""
+    import sqlite3
+
+    try:
+        from .api.retention import compact_checkpoints
+        from .api.store import checkpoint_db_path
+    except ImportError:
+        console.print("[red]Erro:[/red] dependências da API ausentes. Instale com: pip install -e \".[api]\"")
+        raise typer.Exit(code=1)
+
+    target = db or checkpoint_db_path()
+    if not target.is_file():
+        console.print(f"Nada a compactar: {target} não existe.")
+        return
+    try:
+        stats = compact_checkpoints(target)
+    except sqlite3.OperationalError as exc:
+        if "locked" in str(exc).lower():
+            console.print("[red]Banco em uso[/red] — pare a API (auditor serve) e tente novamente.")
+        else:
+            console.print(f"[red]Erro ao compactar {target}:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    mb = 1024 * 1024
+    console.print(f"Checkpoints de sub-agentes removidos: {stats.removed_checkpoints}")
+    console.print(f"Writes de sub-agentes removidos: {stats.removed_writes}")
+    console.print(f"Tamanho: {stats.size_before / mb:.1f} MB → {stats.size_after / mb:.1f} MB")
 
 
 @app.command()

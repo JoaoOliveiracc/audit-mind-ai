@@ -11,40 +11,31 @@ from typing import Any, Optional
 
 from langgraph.types import Command
 
+from ..events import NODE_LABELS
+from ..scoring import severity_counts
 from ..logging_config import get_logger
 from .store import AuditStore
 
 logger = get_logger("api.runner")
 
-NODE_LABELS = {
-    "discovery": "Descoberta e detecção de stack",
-    "plan_questions": "Gerando perguntas de esclarecimento",
-    "clarify": "Esclarecimentos",
-    "planning": "Planejando dimensões",
-    "audit": "Executando investigadores",
-    "verify": "Verificando evidência dos achados",
-    "adversarial": "Julgamento adversarial dos achados",
-    "synthesis": "Consolidando e pontuando",
-    "report": "Gerando relatório",
-}
 
 
 def _counts(findings: list[dict]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for f in findings:
-        sev = f.get("severity", "info")
-        counts[sev] = counts.get(sev, 0) + 1
-    return counts
+    """``counts`` da API: só severidades presentes (contrato existente)."""
+    return severity_counts(findings, include_zero=False)
 
 
 class AuditRunner:
     """Roda uma auditoria e publica eventos consumíveis via SSE."""
 
-    def __init__(self, audit_id: str, graph, store: AuditStore, initial: dict) -> None:
+    def __init__(self, audit_id: str, graph, store: AuditStore, initial: Optional[dict],
+                 resume: bool = False) -> None:
+        """``resume=True`` retoma do último checkpoint (``initial`` é ignorado)."""
         self.id = audit_id
         self._graph = graph
         self._store = store
         self._initial = initial
+        self._resume = resume
         self._config = {"configurable": {"thread_id": audit_id}}
         self.log: list[dict] = []
         self.done = threading.Event()
@@ -88,10 +79,21 @@ class AuditRunner:
                                      "label": NODE_LABELS.get(node, node), "status": "done"})
         return "done"
 
+    def _drive_resume(self) -> str:
+        """Retoma pelo checkpoint: interrupt pendente → reapresenta as perguntas;
+        senão continua os nós pendentes (``stream(None)``; no-op se nada pendente)."""
+        state = self._graph.get_state(self._config)
+        for task in state.tasks:
+            if task.interrupts:
+                value = getattr(task.interrupts[0], "value", {}) or {}
+                self._emit("clarification", {"questions": value.get("questions", [])})
+                return "interrupted"
+        return self._drive(None)
+
     def _run(self) -> None:
-        logger.info("Auditoria %s iniciada", self.id)
+        logger.info("Auditoria %s %s", self.id, "retomada" if self._resume else "iniciada")
         try:
-            result = self._drive(self._initial)
+            result = self._drive_resume() if self._resume else self._drive(self._initial)
             while result == "interrupted":
                 self._store.update(self.id, status="waiting_input")
                 self._resume_ready.wait()

@@ -39,6 +39,31 @@ To intentionally skip (not recommended): `git commit --no-verify`.
    - multiple commits → `git filter-repo --replace-text` or BFG.
 3. Force-push only if necessary and with the team's awareness.
 
+## Threat model (audited code)
+
+The project being audited is **untrusted input**:
+
+- **Data egress:** file contents read by the investigators are sent to the configured LLM
+  provider. For sensitive code, use a local provider (Ollama).
+- **Prompt injection:** comments/strings in the audited repo can try to steer the agent
+  (hide findings, invent findings, or push tool calls). Mitigations: tools are read-only and
+  scoped to the project root; `verify` drops findings whose evidence is not on disk; the HTML
+  report is autoescaped (no stored XSS). Findings can still be *suppressed* — treat the report
+  as a decision aid.
+- **Report chat:** `POST /audits/{id}/chat` sends the saved report (which contains audited-code
+  excerpts) to the audit's LLM provider, delimited as untrusted data; it never reads files. The
+  conversation is kept only in the browser tab.
+- **Root scoping:** every tool resolves symlinks and rejects paths outside the root;
+  `search_code` also rejects absolute globs and globs with a `..` component (G25/G26, fixed).
+- **Local API:** binds to `127.0.0.1`, no authentication, CORS limited to the Vite dev origin.
+  Requests whose `Host` is not loopback (`localhost`, `127.0.0.1`, `[::1]`) get `400` — this blocks
+  DNS rebinding (G27). `auditor serve` refuses a non-local `--host` unless `--allow-remote` is given;
+  even then, remote clients are only accepted for hosts listed in `AUDITOR_ALLOWED_HOSTS`.
+- **Local data at rest:** `$AUDITOR_DATA_DIR/*.sqlite` (default `~/.config/auditor`) stores audit state, including excerpts of
+  audited files. Nothing expires automatically: delete audits from the web history (or
+  `DELETE /audits/{id}`), which removes metadata, checkpoints and the `.md/.html/.sarif` reports.
+  `auditor db compact` reclaims space from legacy sub-agent checkpoints.
+
 ## Key rotation
 
 | Provider | Where to rotate |
