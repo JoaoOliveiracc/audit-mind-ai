@@ -1,0 +1,61 @@
+# Vulnerable Dependencies & Runtimes Tasks
+
+## Execution Protocol (MANDATORY -- do not skip)
+
+Implement with the `tlc-spec-driven` skill (Execute flow + Critical Rules). If it cannot be activated, STOP and tell the user.
+
+**Design**: `.specs/features/vuln-scan/design.md` · **Status**: Draft
+
+## Test Coverage Matrix
+| Layer | Test | Location | Run |
+| ----- | ---- | -------- | --- |
+| Pure (versions, severity, parsers, runtime) | unit with fixture files (real-world-shaped samples) | `tests/vulnscan/test_*.py` | `.venv/bin/pytest -q` |
+| HTTP gateways | unit with `httpx.MockTransport` (no network) | `tests/vulnscan/test_sources.py` | same |
+| Scanner / node | unit with fake clients | `tests/vulnscan/test_scanner.py` | same |
+| CLI/API/report | integration (CliRunner/TestClient) | existing test files | same |
+| Frontend form | Vitest | `frontend/src/components/StartForm.test.tsx` | `./node_modules/.bin/vitest run` |
+| E2E | offline graph + fake transport | `tests/test_e2e.py` | pytest |
+
+## Gate
+Quick `.venv/bin/pytest -q` · Build `make ci` (end of each phase)
+
+## Execution Plan
+### Phase 1 — pure core (no I/O beyond reading fixtures)
+`T1 → T2 → T3 → T4 → T5`
+### Phase 2 — sources, orchestration, graph
+`T6 → T7 → T8 → T9 → T10`
+### Phase 3 — UI, E2E, docs
+`T11 → T12`
+
+## Task Breakdown
+- **T1** `models.py`, `versions.py`, `severity.py` (CVSS v3 base score; GHSA map) — Req OSV-02 (severity part) · unit
+- **T2** npm parsers: package-lock v2/v3, yarn v1 + berry, pnpm + `registry_config.py` (`.npmrc`, `.yarnrc.yml`) — Req LOCK-01..04 · unit
+- **T3** composer.lock parser — LOCK-01..04 · unit
+- **T4** Python parsers: poetry.lock, uv.lock, Pipfile.lock, requirements pins (dev filenames, index → skip file), PEP 503 names — LOCK-01..04, OSV-01 (normalization) · unit
+- **T5** runtime detectors (nvmrc, node-version, engines, composer require.php, python-version, requires-python, Dockerfile FROM; cycle vs exact per runtime) — RT-01, RT-02 (parsing), RT-05 · unit
+- **T6** `OSVClient` (querybatch chunks + pagination, vulns fetch + memo, fixed-version selection, 5 MB streaming cap) — OSV-01..03 · unit (MockTransport)
+- **T7** `EndOfLifeClient` + runtime evaluation (EOL / behind patch / range) — RT-02..04, OSV-03 · unit (MockTransport)
+- **T8** `scanner.scan` (walk with pruning, private filter, cross-lockfile grouping, 10 000 cap, findings, stats, error handling) — FND-01, LOCK-03, OSV-03 (cap), CFG-02 (stats) · unit (fake clients)
+- **T9** graph node + settings `AUDITOR_VULN_SCAN` + CLI `--vuln-scan/--no-vuln-scan` + API `vuln_scan` + adversarial skip + investigator no-duplicate note + `.lock` not binary + core deps (`httpx`, `packaging`, `pyyaml`, `tomli;<3.11`) — CFG-01, FND-02, DUP-01, LOCK-05 · unit + integration
+- **T10** stats + explicit scan status line in report (MD/HTML) and CLI summary, SSE event — CFG-02, RPT-01 · unit/integration
+- **T11** web form checkbox + types + client — UI-01 · Vitest
+- **T12** E2E-05 + docs (README, USAGE, DOCUMENTACAO G48 ✅, SECURITY egress section, ARCHITECTURE, `.env.example`) (AD-003 already recorded at Design) — E2E-05 · e2e + build gate
+
+## Validation
+Granularity: each task = one module/cohesive layer ✅. Dependencies linear within phases, phases ordered ✅. Co-location: every code task carries its tests ✅.
+**Size:** 12 tasks → packs into 2–3 task-budgeted batches (Phase 1 = 5, Phase 2 = 5, Phase 3 = 2) → sub-agent offer applies.
+
+## Phase 1 — execution notes & code-review fixes
+- T1–T5 done. T3 tests and code were written in the same step (red was only an import error); T4/T5 ran red before implementing.
+- Format decision (T3): Composer `v` prefix stripped before querying (OSV indexes Packagist without it); branch versions (`dev-main`) are private.
+- `/code-review` after phase 1 — 10 findings, all fixed with regression tests (`tests/vulnscan/test_vs_review_fixes.py`):
+  1. runtime deps declared in core (`pyyaml>=6`, `packaging>=23`, `tomli>=2; <3.11`) — pulled forward from T9;
+  2. npm aliases (`package-lock` `name`, yarn v1 `alias@npm:real@…`) query the real package (also avoids leaking alias names);
+  3. Pipfile.lock unknown `index` ⇒ private;
+  4. `load_registry_config` never raises (unreadable/invalid UTF-8/non-mapping `npmScopes`);
+  5. PHP/Python wildcard minor (`3.x`) ⇒ unknown (absent minor `>=8` stays `8.0`);
+  6. `!=` accepted in ranges and ignored as lower bound;
+  7. Composer pre-release order (dev < alpha < beta < RC < stable < patch; numeric suffix);
+  8. pnpm v5 keys (`/name/version`) parsed; unrecognized entries recorded as an error (never "clean" silently);
+  9. `===` pins; `--find-links`/`-f` and private sources in `-r`/`-c` includes (within root, cycle-safe) skip the file;
+  10. STATE handoff refreshed.

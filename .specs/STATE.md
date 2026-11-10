@@ -18,13 +18,21 @@
 - **Date**: 2026-11-10
 - **Status**: active
 
+### AD-003
+- **Decision**: Outbound network calls are opt-in per run and limited to a fixed allowlist of HTTPS hosts (today: `api.osv.dev`, `endoflife.date`); only public package coordinates (ecosystem, name, version) may leave the process — never code, file paths or private package names.
+- **Reason**: The auditor handles untrusted, often proprietary code; users running local LLMs expect zero egress.
+- **Trade-off**: Vulnerability scanning is off unless the user enables it.
+- **Scope**: `src/auditor/vulnscan/*`, any future external integration.
+- **Date**: 2026-11-10
+- **Status**: active
+
 ## Handoff
 
-- **Feature**: `.specs/features/report-chat-and-sarif/` (G42) — verified PASS after fix loop 1
-- **Phase / Task**: complete — **all gaps of the 2026-11-10 analysis (G25–G47) resolved**
-- **Completed**: G25–G47 across 13 features in `.specs/features/`
+- **Feature**: `.specs/features/vuln-scan/` (G48)
+- **Phase / Task**: Phase 1 (T1–T5) **done** + `/code-review` fixes applied; Phase 2 not started (user runs phases on request; `/code-review` at the end of each phase)
+- **Completed**: T1 models/versions/severity · T2 npm parsers + registry config · T3 composer · T4 Python parsers · T5 runtime detection/classification · 10 code-review fixes
 - **In-progress**: none
-- **Next step**: user commits + pushes; optional follow-ups: tests still read the repo-root `.env` (load_dotenv from cwd); choose a coverage floor (measured 91%); real smoke run against Gemini 3 (wrap-up notice as HumanMessage, medium confidence); `_BudgetMiddleware` is sync-only (needs `awrap_model_call` if moving to `ainvoke`)
+- **Next step**: on the user's go-ahead, Phase 2 — T6 `OSVClient` (tests first, httpx MockTransport)
 - **Blockers**: none
-- **Uncommitted files**: report-chat-and-sarif (chat.py, templates, schemas, routes, frontend ChatDock/ResultsPanel/client/App + tests, tests/test_chat.py, tests/test_e2e.py, tests/fake_llm.py, docs, .specs/)
+- **Uncommitted files**: `src/auditor/vulnscan/` (models, versions, severity, runtime, lockfiles/{__init__,registry_config,npm,composer,python}), `tests/vulnscan/` (6 files), `pyproject.toml` (core deps + `types-PyYAML`), `.specs/features/vuln-scan/`, `.specs/STATE.md`
 - **Branch**: develop
