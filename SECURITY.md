@@ -55,7 +55,9 @@ The project being audited is **untrusted input**:
 - **Local API:** binds to `127.0.0.1`, no authentication, CORS limited to the Vite dev origin.
   ⚠️ No `Host` header validation yet (DNS-rebinding exposure, G27). Do not bind it to `0.0.0.0`.
 - **Local data at rest:** `~/.config/auditor/*.sqlite` stores audit state, including excerpts of
-  audited files, with no retention policy yet (G28). Protect/clean that directory accordingly.
+  audited files. Nothing expires automatically: delete audits from the web history (or
+  `DELETE /audits/{id}`), which removes metadata, checkpoints and the `.md/.html/.sarif` reports.
+  `auditor db compact` reclaims space from legacy sub-agent checkpoints.
 
 ## Key rotation
 

@@ -66,7 +66,7 @@ FastAPI + SSE, `SqliteSaver`). The Vite/React frontend in `frontend/` consumes t
 | `graph.py` | Graph assembly and compilation. |
 | `report/renderer.py` · `report/sarif.py` | Markdown/HTML (Jinja2, autoescape) and SARIF 2.1.0. |
 | `cli.py` | Terminal interface (Typer + Rich) and interrupt loop. |
-| `api/*` | FastAPI routes, background runner (thread per audit), SQLite store, schemas. |
+| `api/*` | FastAPI routes, background runner (thread per audit), SQLite store, schemas, retention (delete/compact). |
 
 ## 3. Graph state
 
@@ -92,8 +92,10 @@ from `POST /audits/{id}/answers` in the API.
 A **checkpointer** is mandatory for `interrupt`. The CLI uses `MemorySaver`; the API uses
 `SqliteSaver` (`~/.config/auditor/audits-checkpoints.sqlite`).
 
-> **Known issue (G29):** the ReAct sub-agents inherit the parent checkpointer, so every
-> investigator step is persisted — ~99% of the SQLite database. See `DOCUMENTACAO.md` §10.3.
+Sub-agents are created with `checkpointer=False` (decision AD-001 in `.specs/STATE.md`): only the
+top-level graph is checkpointed. Audits are deleted manually (`DELETE /audits/{id}` →
+`auditor.api.retention.delete_audit`: reports → checkpoints → metadata), and `auditor db compact`
+removes legacy sub-graph checkpoints.
 
 ## 5. ReAct sub-agents (audit phase)
 

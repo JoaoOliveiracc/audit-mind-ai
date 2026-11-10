@@ -173,7 +173,7 @@ print(final["health_score"], final["report_html_path"])
 | `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
 | `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
 | `Recursion limit reached` / dimension with no findings and a "need more steps" summary | project too large for the step budget | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
-| `~/.config/auditor/audits-checkpoints.sqlite` grows by tens of MB per audit | sub-agent steps are checkpointed (known issue G29) | Delete old audits' DB files while the API is stopped; fix tracked in the roadmap. |
+| `~/.config/auditor/audits-checkpoints.sqlite` is very large | legacy audits (before the G29 fix) stored every sub-agent step | Stop the API and run `auditor db compact`; delete unwanted audits from the web history (`DELETE /audits/{id}`). |
 | Slow/expensive audit | too many dimensions/files | Reduce `AUDITOR_MAX_FILES` or use `--goal` to narrow the focus. |
 | Few findings | insufficient context | Answer the clarification questions in detail. |
 

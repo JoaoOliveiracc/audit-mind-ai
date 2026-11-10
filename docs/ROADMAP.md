@@ -21,7 +21,8 @@ See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
 ## v0.2 — Scale and performance
 - [x] **Parallelize investigators** — delivered with a thread pool (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`).
 - [x] **Persistent checkpointer** (`SqliteSaver`) — delivered in the API mode.
-- [ ] Stop persisting sub-agent checkpoints and add retention/cleanup (G28/G29).
+- [x] Stop persisting sub-agent checkpoints; manual deletion + `auditor db compact` (G28/G29).
+- [ ] Migrate investigators from deprecated `create_react_agent` to `langchain.agents.create_agent` (G44).
 - [ ] Cache file reads across dimensions.
 - [ ] Intelligent summarization/selection of files in very large projects (map-reduce).
 

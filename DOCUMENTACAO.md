@@ -14,8 +14,8 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G43**; G25, G26 e G30 já foram
-> corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
+> técnica de **2026-11-10** levantou novos gaps **G25–G45**; G25, G26, G28, G29 e G30 já
+> foram corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
 
@@ -200,6 +200,7 @@ auditor audit /caminho/do/projeto --no-questions
 auditor audit /proj --provider ollama --model qwen2.5-coder:14b   # 100% local
 
 auditor providers    # lista providers, pacotes e credenciais
+auditor db compact   # compacta ~/.config/auditor/audits-checkpoints.sqlite (API parada)
 auditor version
 ```
 
@@ -223,6 +224,7 @@ Principais endpoints:
 | `POST` | `/audits` | Cria e inicia uma auditoria em background. |
 | `GET`  | `/audits` | Lista o histórico local de auditorias. |
 | `GET`  | `/audits/{id}` | Estado atual de uma auditoria. |
+| `DELETE` | `/audits/{id}` | Exclui metadados, checkpoints e relatórios (`204`; `404` inexistente; `409` em execução; `500` falha de I/O, re-tentável). |
 | `GET`  | `/audits/{id}/stream` | **SSE**: progresso, esclarecimentos e conclusão. |
 | `POST` | `/audits/{id}/answers` | Envia respostas de esclarecimento (human-in-the-loop). |
 | `GET`  | `/audits/{id}/findings` | Achados estruturados (JSON) para o dashboard. |
@@ -230,6 +232,11 @@ Principais endpoints:
 
 Estado do grafo persistido em `SqliteSaver`; metadados das auditorias em SQLite
 (`~/.config/auditor/audits.sqlite` e `audits-checkpoints.sqlite`). CORS restrito ao frontend local.
+
+**Retenção:** nada expira sozinho — exclua pelo histórico do frontend ou via `DELETE /audits/{id}`.
+Para compactar o banco de checkpoints (ex.: auditorias antigas com checkpoints de sub-agentes),
+pare a API e rode `auditor db compact` (remove só checkpoints de sub-grafo + `VACUUM`; preserva
+todas as auditorias).
 
 ### Frontend web (Vite/React — `frontend/`)
 
@@ -430,14 +437,14 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~**G25**~~ ✅ | `search_code` escapa da raiz via `glob` com `..` (ex.: `glob="../outside/*"`): lê arquivos fora do projeto e envia o conteúdo ao LLM. Viola RNF-01; explorável por *prompt injection* no repositório auditado. | 🟠 Alto | Reproduzido — `tools/filesystem.py:90` (`root.glob(glob)` sem `_safe_resolve`). | ✅ **Resolvido** — glob absoluto/com `..` rejeitado; `_safe_resolve` por arquivo. |
 | ~~**G26**~~ ✅ | `search_code` segue symlinks que apontam para fora da raiz (o `read_file` bloqueia, a busca não). | 🟠 Alto | Reproduzido — symlink `src/link.txt → ../outside/s.txt` vazou o conteúdo. | ✅ **Resolvido** — symlinks para fora são ignorados. |
 | G27 | API local sem validação de `Host` → vulnerável a *DNS rebinding*: um site malicioso pode listar diretórios do host (`/fs/browse`), iniciar auditorias de qualquer pasta (enviando código ao provider) e ler relatórios. CORS não protege contra rebinding. | 🟡 Médio | Análise — `api/main.py` (só `CORSMiddleware`). | `TrustedHostMiddleware(["127.0.0.1","localhost"])` + token local opcional. |
-| G28 | Retenção de dados: o checkpointer guarda o **conteúdo dos arquivos auditados** (saídas das tools) indefinidamente em `~/.config/auditor/`; não há expurgo nem `DELETE /audits/{id}`. | 🟡 Médio | Análise + dados locais (ver G29). | Política de retenção, endpoint de exclusão (checkpoint + metadados + relatórios). |
+| ~~G28~~ ✅ | Retenção de dados: o checkpointer guarda o **conteúdo dos arquivos auditados** (saídas das tools) indefinidamente em `~/.config/auditor/`; não há expurgo nem `DELETE /audits/{id}`. | 🟡 Médio | Análise + dados locais (ver G29). | ✅ **Resolvido** — exclusão manual: `DELETE /audits/{id}` + botão no histórico (metadados, checkpoints e relatórios); `auditor db compact` para o legado. Spec: `.specs/features/audit-retention/`. |
 | G43 | Modelo de ameaça não documentado: o código auditado é **entrada não confiável** para o LLM (pode suprimir/forjar achados; o `verify` só mitiga achados forjados). | ℹ️ Info | Análise. | Documentado em `SECURITY.md` (§ Threat model). |
 
 #### Bugs e robustez
 
 | # | Gap | Sev. | Evidência | Correção proposta |
 |---|-----|------|-----------|-------------------|
-| **G29** | Os sub-agentes ReAct herdam o checkpointer do grafo pai: **cada passo** de cada investigador é persistido. 2091 de 2220 checkpoints (≈ 880 MB de ≈ 886 MB) são de *subgraph* — ~60 MB por auditoria. | 🟠 Alto | Reproduzido — `~/.config/auditor/audits-checkpoints.sqlite` = 856 MB / 14 auditorias. | Compilar o sub-agente sem checkpoint (`checkpointer=False`), validar com teste; script de compactação/expurgo. |
+| ~~**G29**~~ ✅ | Os sub-agentes ReAct herdavam o checkpointer do grafo pai: **cada passo** de cada investigador era persistido. 2091 de 2220 checkpoints (≈ 880 MB de ≈ 886 MB) são de *subgraph*, todos de auditorias de 02–03/07 (35–132 MB cada). **Correção à análise:** auditorias desde 07/07 já não geravam esses checkpoints — só *por acidente* (o `ThreadPoolExecutor` não propaga o contexto do checkpointer). | 🟠 Alto | Reproduzido — banco local de 856 MB / 14 auditorias. | ✅ **Resolvido** — `create_react_agent(..., checkpointer=False)` (AD-001) + teste que roda o investigador no mesmo contexto do pai; `auditor db compact` limpa o legado. |
 | ~~G30~~ ✅ | `search_code` ignora **todo** o projeto se algum diretório **ancestral** da raiz tiver nome em `ignore_dirs` (`build`, `bin`, `env`, `out`, `target`, `dist`, `vendor`…) — testa partes do caminho absoluto. O mesmo padrão em `detect_stack` torna `has_tests=True` para qualquer projeto sob uma pasta `tests/`. | 🟡 Médio | Reproduzido — projeto em `…/build/proj` → `(nenhum resultado)`. `tools/filesystem.py:93`, `tools/project.py:83`. | ✅ **Resolvido** — `search_code` e `detect_stack` usam `path.relative_to(root).parts`. |
 | G31 | Auditorias "zumbis": após reiniciar a API, registros em `running`/`waiting_input` ficam assim para sempre (o `registry` é em memória); o histórico tenta reconectar o SSE e recebe 404. | 🟡 Médio | Reproduzido — banco local tem 1 `running` + 2 `waiting_input` órfãos. | Reconciliar no startup (marcar `interrupted`) e/ou retomar do checkpointer (que já é persistente). |
 | G32 | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | Orçamento de passos com relatório forçado no fim; renomear/documentar a semântica. |
@@ -455,10 +462,12 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | G39 | Cobertura: nenhum teste cobre os casos-limite das tools (glob, symlink, ancestral — exatamente onde estão G25/G26/G30), nem `discovery`/`planning`/`synthesis`/CLI, nem um e2e com LLM falso. | 🟢 Baixo | Inventário de `tests/`. | Testes de regressão junto de cada correção. |
 | G40 | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | Fonte única (`pyproject`), um gerenciador JS, mínimos realistas. |
 | G41 | Duplicação: `_emit` copiado em 3 nós; `NODE_LABELS` em `cli.py` e `runner.py`; contagem por severidade em 4 lugares. | 🟢 Baixo | Análise. | Extrair para um módulo comum (`auditor.events`, `auditor.scoring`). |
+| G44 | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | Migrar para `create_agent` mantendo `checkpointer=False` e o teste SUB-01. |
+| G45 | Relatórios nomeados só com timestamp de 1 s (`auditoria-AAAAMMDD-HHMMSS.*`): duas auditorias concluídas no mesmo segundo sobrescrevem os arquivos uma da outra — e excluir uma apaga os relatórios da outra. | 🟢 Baixo | Análise (Verifier de `audit-retention`) — `report/renderer.py:177-182`. | Incluir o id da auditoria (ou sufixo único) no nome do arquivo. |
 | G42 | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ comentário corrigido; restante no backlog. |
 
-**Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → (2) G29+G28
-(disco/retensão) → (3) G31+G27 (API) → (4) G32+G33 → (5) G37+G38+G36 (higiene/CI) → restante.
+**Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
+(disco/retenção) → (3) G31+G27 (API) → (4) G32+G33 → (5) G37+G38+G36 (higiene/CI) → restante.
 
 ---
 
@@ -483,7 +492,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
 ### Correções da análise de 2026-11-10 — pendente (G25–G42)
-G25/G26/G30 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+G25/G26/G28/G29/G30 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 
