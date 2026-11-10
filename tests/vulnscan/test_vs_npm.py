@@ -1,0 +1,230 @@
+"""Parsers npm (spec: .specs/features/vuln-scan — LOCK-01..04)."""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from auditor.vulnscan.lockfiles import npm
+
+
+def _write(root: Path, name: str, text: str) -> Path:
+    p = root / name
+    p.write_text(text, encoding="utf-8")
+    return p
+
+
+def _line_of(path: Path, needle: str, after: str) -> int:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if after in ln)
+    return next(i for i in range(start, len(lines)) if needle in lines[i]) + 1
+
+
+def _by_name(result):
+    return {d.name: d for d in result.dependencies}
+
+
+# --- package-lock.json v3 -------------------------------------------------------------
+PACKAGE_LOCK = {
+    "name": "app", "lockfileVersion": 3, "requires": True,
+    "packages": {
+        "": {"name": "app", "version": "1.0.0", "dependencies": {"lodash": "^4.17.15"}},
+        "node_modules/lodash": {"version": "4.17.15",
+                                "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.15.tgz",
+                                "integrity": "sha512-x"},
+        "node_modules/vitest": {"version": "2.1.9", "dev": True,
+                                "resolved": "https://registry.npmjs.org/vitest/-/vitest-2.1.9.tgz"},
+        "node_modules/a/node_modules/minimist": {"version": "0.0.8",
+                                                 "resolved": "https://registry.npmjs.org/minimist/-/minimist-0.0.8.tgz"},
+        "node_modules/@acme/billing": {"version": "3.0.0",
+                                       "resolved": "https://npm.acme.internal/@acme/billing/-/billing-3.0.0.tgz"},
+        "node_modules/from-git": {"version": "1.0.0", "resolved": "git+ssh://git@github.com/x/y.git#abc"},
+        "node_modules/local-ws": {"resolved": "packages/local-ws", "link": True},
+        "node_modules/no-resolved": {"version": "1.0.0"},
+    },
+}
+
+
+def test_package_lock_v3(tmp_path):
+    path = _write(tmp_path, "package-lock.json", json.dumps(PACKAGE_LOCK, indent=2))
+    deps = _by_name(npm.parse_package_lock(path, "package-lock.json", tmp_path))
+
+    lodash = deps["lodash"]
+    assert (lodash.ecosystem, lodash.version, lodash.dev, lodash.private) == ("npm", "4.17.15", False, False)
+    assert lodash.line == _line_of(path, '"version": "4.17.15"', '"node_modules/lodash"')   # LOCK-01
+    assert deps["vitest"].dev is True                                                         # LOCK-02
+    assert deps["minimist"].version == "0.0.8"                                                # aninhado
+    assert deps["@acme/billing"].private is True                                              # host privado
+    assert deps["from-git"].private is True                                                   # git
+    assert "local-ws" not in deps or deps["local-ws"].private is True                         # link
+    assert deps["no-resolved"].private is True                                                # dúvida ⇒ privado
+    assert all(d.file == "package-lock.json" for d in deps.values())
+
+
+def test_package_lock_v1_is_reported_not_raised(tmp_path):
+    path = _write(tmp_path, "package-lock.json", json.dumps({"lockfileVersion": 1, "dependencies": {}}))
+    result = npm.parse_package_lock(path, "package-lock.json", tmp_path)
+    assert result.dependencies == [] and result.errors and "lockfileVersion 1" in result.errors[0]
+
+
+@pytest.mark.parametrize("text", ["{ não é json", "[]", '{"lockfileVersion": 3, "packages": 5}'])
+def test_package_lock_malformed_never_raises(tmp_path, text):                                   # LOCK-04
+    path = _write(tmp_path, "package-lock.json", text)
+    result = npm.parse_package_lock(path, "package-lock.json", tmp_path)
+    assert result.dependencies == [] and len(result.errors) == 1
+
+
+def test_npmrc_scope_and_default_registry_make_packages_private(tmp_path):
+    _write(tmp_path, ".npmrc", "@acme:registry=https://npm.acme.internal/\n")
+    lock = {"lockfileVersion": 3, "packages": {
+        "node_modules/@acme/ui": {"version": "1.0.0",
+                                  "resolved": "https://registry.npmjs.org/@acme/ui/-/ui-1.0.0.tgz"}}}
+    path = _write(tmp_path, "package-lock.json", json.dumps(lock))
+    assert _by_name(npm.parse_package_lock(path, "package-lock.json", tmp_path))["@acme/ui"].private
+
+    _write(tmp_path, ".npmrc", "registry=https://nexus.corp/repository/npm/\n")
+    lock["packages"]["node_modules/left-pad"] = {"version": "1.3.0",
+                                                 "resolved": "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"}
+    path = _write(tmp_path, "package-lock.json", json.dumps(lock))
+    assert _by_name(npm.parse_package_lock(path, "package-lock.json", tmp_path))["left-pad"].private
+
+
+# --- yarn.lock v1 ---------------------------------------------------------------------
+YARN_V1 = '''# THIS IS AN AUTOGENERATED FILE. DO NOT EDIT THIS FILE DIRECTLY.
+# yarn lockfile v1
+
+
+lodash@^4.17.15, lodash@^4.17.4:
+  version "4.17.15"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#4be3b"
+  integrity sha512-x
+
+"@babel/core@^7.0.0":
+  version "7.20.0"
+  resolved "https://registry.yarnpkg.com/@babel/core/-/core-7.20.0.tgz#abc"
+
+"@acme/x@^1.0.0":
+  version "1.0.0"
+  resolved "https://npm.acme.internal/@acme/x/-/x-1.0.0.tgz"
+'''
+
+
+def test_yarn_v1(tmp_path):
+    path = _write(tmp_path, "yarn.lock", YARN_V1)
+    deps = _by_name(npm.parse_yarn_lock(path, "yarn.lock", tmp_path))
+    assert set(deps) == {"lodash", "@babel/core", "@acme/x"}
+    assert (deps["lodash"].version, deps["lodash"].private) == ("4.17.15", False)
+    assert deps["lodash"].line == _line_of(path, 'version "4.17.15"', "lodash@^4.17.15")
+    assert deps["@babel/core"].version == "7.20.0" and not deps["@babel/core"].private
+    assert deps["@acme/x"].private
+
+
+# --- yarn.lock berry ------------------------------------------------------------------
+YARN_BERRY = '''# This file is generated by running "yarn install" inside your project.
+
+__metadata:
+  version: 8
+  cacheKey: 10c0
+
+"lodash@npm:^4.17.15":
+  version: 4.17.15
+  resolution: "lodash@npm:4.17.15"
+  checksum: 10c0/abc
+  languageName: node
+  linkType: hard
+
+"@acme/ui@npm:^1.0.0":
+  version: 1.2.0
+  resolution: "@acme/ui@npm:1.2.0"
+  languageName: node
+  linkType: hard
+
+"app@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "app@workspace:."
+  languageName: unknown
+  linkType: soft
+'''
+
+
+def test_yarn_berry_with_yarnrc_scope(tmp_path):
+    _write(tmp_path, ".yarnrc.yml", "npmScopes:\n  acme:\n    npmRegistryServer: \"https://npm.acme.internal\"\n")
+    path = _write(tmp_path, "yarn.lock", YARN_BERRY)
+    deps = _by_name(npm.parse_yarn_lock(path, "yarn.lock", tmp_path))
+    assert (deps["lodash"].version, deps["lodash"].private) == ("4.17.15", False)
+    assert deps["lodash"].line == _line_of(path, "version: 4.17.15", '"lodash@npm:^4.17.15"')
+    assert deps["@acme/ui"].private                                   # escopo mapeado no .yarnrc.yml
+    assert "app" not in deps or deps["app"].private                   # workspace
+
+
+def test_yarn_berry_default_registry_private(tmp_path):
+    _write(tmp_path, ".yarnrc.yml", "npmRegistryServer: \"https://nexus.corp/npm\"\n")
+    path = _write(tmp_path, "yarn.lock", YARN_BERRY)
+    assert _by_name(npm.parse_yarn_lock(path, "yarn.lock", tmp_path))["lodash"].private
+
+
+# --- pnpm-lock.yaml (v9 e v6) ---------------------------------------------------------
+PNPM_V9 = """lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.15
+        version: 4.17.15
+
+packages:
+
+  lodash@4.17.15:
+    resolution: {integrity: sha512-x}
+
+  '@types/react@18.2.0':
+    resolution: {integrity: sha512-y}
+
+  react-dom@18.2.0(react@18.2.0):
+    resolution: {integrity: sha512-z}
+
+  '@acme/x@1.0.0':
+    resolution: {tarball: https://npm.acme.internal/@acme/x/-/x-1.0.0.tgz}
+
+snapshots:
+
+  lodash@4.17.15: {}
+"""
+
+PNPM_V6 = """lockfileVersion: '6.0'
+
+packages:
+
+  /lodash@4.17.15:
+    resolution: {integrity: sha512-x}
+    dev: false
+
+  /vitest@2.1.9_jsdom@25.0.1:
+    resolution: {integrity: sha512-y}
+    dev: true
+"""
+
+
+def test_pnpm_v9(tmp_path):
+    path = _write(tmp_path, "pnpm-lock.yaml", PNPM_V9)
+    deps = _by_name(npm.parse_pnpm_lock(path, "pnpm-lock.yaml", tmp_path))
+    assert deps["lodash"].version == "4.17.15" and not deps["lodash"].private
+    assert deps["lodash"].line == _line_of(path, "lodash@4.17.15:", "packages:")
+    assert deps["@types/react"].version == "18.2.0"
+    assert deps["react-dom"].version == "18.2.0"                      # sufixo de peer removido
+    assert deps["@acme/x"].private                                     # tarball fora do registro
+
+
+def test_pnpm_v6_dev_flag(tmp_path):
+    path = _write(tmp_path, "pnpm-lock.yaml", PNPM_V6)
+    deps = _by_name(npm.parse_pnpm_lock(path, "pnpm-lock.yaml", tmp_path))
+    assert (deps["lodash"].dev, deps["vitest"].dev) == (False, True)
+    assert deps["vitest"].version == "2.1.9"                          # sufixo _peer removido
+
+
+def test_pnpm_malformed_never_raises(tmp_path):
+    path = _write(tmp_path, "pnpm-lock.yaml", "packages: [isto: não: é: yaml")
+    result = npm.parse_pnpm_lock(path, "pnpm-lock.yaml", tmp_path)
+    assert result.dependencies == [] and len(result.errors) == 1

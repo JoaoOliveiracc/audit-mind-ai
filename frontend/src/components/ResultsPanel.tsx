@@ -41,6 +41,28 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
         </div>
       </div>
 
+      {results.dependency_scan_status && (
+        <div
+          role="status"
+          aria-label="Dependências"
+          className={`card text-xs ${results.dependency_scan_status.incomplete ? '!border-sev-medium' : ''}`}
+        >
+          <span className="eyebrow mr-1.5">Dependências</span>
+          <span className={results.dependency_scan_status.incomplete ? 'text-sev-medium' : ''}>
+            {results.dependency_scan_status.headline}
+          </span>
+          {results.dependency_scan_status.reasons.length > 0 && (
+            <ul className="mt-1 space-y-0.5 font-mono text-[color:var(--dim)]">
+              {results.dependency_scan_status.reasons.map((r) => (
+                <li key={r} className="break-words">
+                  – {r}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {(results.verification || results.adversarial) && (
         <div className="card flex flex-wrap gap-x-6 gap-y-1 text-xs">
           {results.verification && (

@@ -14,6 +14,8 @@ class CreateAuditRequest(BaseModel):
     provider: Optional[str] = Field(default=None, description="Provedor de LLM (sobrescreve o .env).")
     model: Optional[str] = Field(default=None, description="Modelo (sobrescreve o .env).")
     interactive: bool = Field(default=True, description="Se False, pula a fase de esclarecimentos.")
+    vuln_scan: Optional[bool] = Field(
+        default=None, description="Verificar dependências vulneráveis (OSV.dev); padrão: AUDITOR_VULN_SCAN.")
 
 
 class AnswersRequest(BaseModel):

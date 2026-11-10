@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from ..state import Severity
 from ..scoring import severity_counts
+from ..vulnscan.status import scan_status
 from .sarif import render_sarif
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -56,6 +57,7 @@ def build_context(state: dict[str, Any], generated_at: str) -> dict[str, Any]:
         "total_findings": len(findings),
         "verification": state.get("verification", {}),
         "adversarial": state.get("adversarial", {}),
+        "scan_status": scan_status(state.get("dependency_scan")),
     }
 
 
@@ -81,6 +83,13 @@ def render_markdown(ctx: dict[str, Any]) -> str:
     a("| --- | --- |")
     for sev in ctx["severity_order"]:
         a(f"| {ctx['severity_label'][sev]} | {ctx['counts'].get(sev, 0)} |")
+    a("")
+
+    status = ctx.get("scan_status") or scan_status(None)
+    a("## Dependências e Runtimes\n")
+    a(f"**{status.headline}.**")
+    for reason in status.reasons:
+        a(f"- {reason}")
     a("")
 
     v = ctx.get("verification") or {}

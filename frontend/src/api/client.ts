@@ -4,6 +4,7 @@ import type {
   CreateAuditRequest,
   FindingsPayload,
   ProviderInfo,
+  ServerDefaults,
 } from '../types'
 
 async function jsonOrThrow(res: Response): Promise<any> {
@@ -25,6 +26,11 @@ async function jsonOrThrow(res: Response): Promise<any> {
 
 export async function getProviders(): Promise<ProviderInfo[]> {
   return jsonOrThrow(await fetch('/providers'))
+}
+
+/** Padrões do servidor (G48: o checkbox de varredura parte do AUDITOR_VULN_SCAN). */
+export async function getDefaults(): Promise<ServerDefaults> {
+  return jsonOrThrow(await fetch('/defaults'))
 }
 
 export async function listAudits(): Promise<AuditSummary[]> {

@@ -116,6 +116,8 @@ export interface CreateAuditRequest {
   provider?: string
   model?: string
   interactive: boolean
+  /** Varredura de dependências vulneráveis (G48): envia nomes/versões públicos ao OSV.dev. */
+  vuln_scan?: boolean
 }
 
 export interface AuditSummary {
@@ -139,6 +141,18 @@ export interface FindingsPayload {
   stack_profile: StackProfile
   verification?: VerificationSummary
   adversarial?: AdversarialSummary
+  /** Status já redigido da varredura de dependências (G48, RPT-01); ausente em auditorias antigas. */
+  dependency_scan_status?: DependencyScanStatus
+}
+
+export interface DependencyScanStatus {
+  headline: string
+  incomplete: boolean
+  reasons: string[]
+}
+
+export interface ServerDefaults {
+  vuln_scan: boolean
 }
 
 export interface ProviderInfo {

@@ -50,6 +50,16 @@ The project being audited is **untrusted input**:
   scoped to the project root; `verify` drops findings whose evidence is not on disk; the HTML
   report is autoescaped (no stored XSS). Findings can still be *suppressed* — treat the report
   as a decision aid.
+- **Dependency scan (opt-in, AD-003):** with `AUDITOR_VULN_SCAN=true` / `--vuln-scan` / the web
+  checkbox, the agent contacts **only** `https://api.osv.dev` and `https://endoflife.date` (fixed
+  allowlist; no URL comes from project files). It sends **only** ecosystem, package name and version
+  of packages from public registries, and runtime product names — never code, file paths or private
+  package names (non-public registries, git/path sources, `.npmrc`/`.yarnrc.yml` private scopes,
+  Composer packages without the Packagist notification URL, requirements files with a private index
+  are skipped). Registry settings **outside** the project count too: `~/.npmrc`, `~/.yarnrc.yml`,
+  `npm_config_*registry`, `PIP_INDEX_URL`/`PIP_EXTRA_INDEX_URL`/`PIP_FIND_LINKS`/`UV_*` and `pip.conf`
+  (an unreadable `pip.conf` is treated as private). Responses are size-capped (5 MB) and parsed defensively; symlinked files are not read.
+  Off by default (Ollama users expect zero egress).
 - **Report chat:** `POST /audits/{id}/chat` sends the saved report (which contains audited-code
   excerpts) to the audit's LLM provider, delimited as untrusted data; it never reads files. The
   conversation is kept only in the browser tab.
