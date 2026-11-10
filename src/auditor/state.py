@@ -164,6 +164,10 @@ class AuditState(TypedDict, total=False):
     findings: list[dict[str, Any]]
     dimension_summaries: Annotated[list[dict[str, Any]], operator.add]
 
+    # Varredura de dependências/runtimes (G48): flag por execução + estatísticas do nó
+    vuln_scan: bool
+    dependency_scan: dict[str, Any]
+
     # Verificação de evidência (estatísticas do nó verify)
     verification: dict[str, Any]
     # Verificação adversarial (estatísticas do juiz LLM)

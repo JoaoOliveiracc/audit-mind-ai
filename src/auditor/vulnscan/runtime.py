@@ -11,7 +11,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from .models import RuntimeDecl
+from .models import Cycle, RuntimeDecl
+from .versions import version_key
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -95,8 +96,9 @@ def _version_file(product: str, rel: str, lines: list[str]) -> list[RuntimeDecl]
 def _json_field(product: str, rel: str, text: str, section: str, key: str) -> list[RuntimeDecl]:
     try:
         data = json.loads(text)
-        value = data.get(section, {}).get(key) if isinstance(data, dict) else None
-    except (ValueError, AttributeError):
+        block = data.get(section) if isinstance(data, dict) else None
+        value = block.get(key) if isinstance(block, dict) else None
+    except ValueError:
         return []
     if not isinstance(value, str):
         return []
@@ -109,9 +111,10 @@ def _json_field(product: str, rel: str, text: str, section: str, key: str) -> li
 
 def _pyproject(rel: str, text: str) -> list[RuntimeDecl]:
     try:
-        value = (tomllib.loads(text).get("project") or {}).get("requires-python")
+        project = tomllib.loads(text).get("project")
     except tomllib.TOMLDecodeError:
         return []
+    value = project.get("requires-python") if isinstance(project, dict) else None
     if not isinstance(value, str):
         return []
     lines = text.splitlines()
@@ -137,6 +140,14 @@ def _dockerfile(rel: str, lines: list[str]) -> list[RuntimeDecl]:
     return decls
 
 
+_RUNTIME_FILES = frozenset({".nvmrc", ".node-version", ".python-version", "package.json",
+                            "composer.json", "pyproject.toml"})
+
+
+def is_runtime_file(name: str) -> bool:
+    return name in _RUNTIME_FILES or _is_dockerfile(name)
+
+
 def detect_in_file(path: Path, rel: str) -> list[RuntimeDecl]:
     """Declarações de runtime de um arquivo; cada uma independente (RT-05). Nunca lança."""
     name = path.name
@@ -158,3 +169,40 @@ def detect_in_file(path: Path, rel: str) -> list[RuntimeDecl]:
     if _is_dockerfile(name):
         return _dockerfile(rel, lines)
     return []
+
+
+# --- avaliação contra o endoflife.date (RT-02..04) ---------------------------------------
+@dataclass(frozen=True)
+class Evaluation:
+    status: str                 # "finding" | "ok" | "unknown"
+    severity: str | None = None
+    message: str = ""
+    reason: str | None = None   # "eol" | "patch"
+    latest: str | None = None   # último patch do ciclo (reason == "patch")
+
+
+RUNTIME_LABELS = {"nodejs": "Node.js", "php": "PHP", "python": "Python"}
+
+
+def evaluate(decl: RuntimeDecl, cycles: list[Cycle] | None) -> Evaluation:
+    """Ciclo EOL → ``high`` (ciclo/exato) ou ``medium`` (faixa); exato abaixo do último patch → ``medium``."""
+    got = classify(decl.product, decl.value)
+    by_name = {c.name: c for c in cycles or []}
+    cycle = by_name.get(got.cycle or "")
+    if got.kind == "unknown" or cycle is None:
+        return Evaluation("unknown")
+    label = RUNTIME_LABELS.get(decl.product, decl.product)
+    if cycle.is_eol:
+        if got.kind == "range":
+            return Evaluation("finding", "medium",
+                              f"A faixa declarada ({decl.value}) permite {label} {cycle.name}, ciclo sem "
+                              "suporte (EOL): sem correções de segurança.", "eol")
+        return Evaluation("finding", "high",
+                          f"{label} {cycle.name} está sem suporte (EOL): não recebe mais correções de segurança.",
+                          "eol")
+    if got.kind == "exact" and cycle.latest and \
+            version_key("npm", got.exact or "") < version_key("npm", cycle.latest):
+        return Evaluation("finding", "medium",
+                          f"{label} {got.exact} está abaixo do último patch do ciclo {cycle.name} "
+                          f"({cycle.latest}), que pode conter correções de segurança.", "patch", cycle.latest)
+    return Evaluation("ok")

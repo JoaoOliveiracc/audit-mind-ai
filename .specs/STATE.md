@@ -29,10 +29,9 @@
 ## Handoff
 
 - **Feature**: `.specs/features/vuln-scan/` (G48)
-- **Phase / Task**: Phase 1 (T1–T5) **done** + `/code-review` fixes applied; Phase 2 not started (user runs phases on request; `/code-review` at the end of each phase)
-- **Completed**: T1 models/versions/severity · T2 npm parsers + registry config · T3 composer · T4 Python parsers · T5 runtime detection/classification · 10 code-review fixes
-- **In-progress**: none
-- **Next step**: on the user's go-ahead, Phase 2 — T6 `OSVClient` (tests first, httpx MockTransport)
+- **Phase / Task**: Phase 2 (T6–T10) **done** + phase-2 `/code-review` fixes applied; Phase 3 (T11–T12) not started
+- **Completed**: Phase 1 (T1–T5 + 10 review fixes) · T6 OSV client · T7 endoflife client + evaluate · T8 scanner · T9 node/config/CLI/API/adversarial/DUP-01/`.lock` · T10 scan status in report/CLI/API
+- **Next step**: on the user's go-ahead, Phase 3 — T11 web checkbox (UI-01)
 - **Blockers**: none
-- **Uncommitted files**: `src/auditor/vulnscan/` (models, versions, severity, runtime, lockfiles/{__init__,registry_config,npm,composer,python}), `tests/vulnscan/` (6 files), `pyproject.toml` (core deps + `types-PyYAML`), `.specs/features/vuln-scan/`, `.specs/STATE.md`
-- **Branch**: develop
+- **Uncommitted files**: `src/auditor/vulnscan/` (+ sources/, scanner.py, status.py), `src/auditor/nodes/dependency_scan.py`, edits to config/state/graph/events/cli/api/nodes/prompts/report, `tests/vulnscan/` (11 files), `pyproject.toml`, `.specs/`
+- **Branch**: feat/vuln-scan

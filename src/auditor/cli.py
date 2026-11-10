@@ -8,6 +8,7 @@ from typing import Optional
 import typer
 from langgraph.types import Command
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
@@ -17,6 +18,7 @@ from .config import get_settings
 from .events import NODE_ICONS, NODE_LABELS
 from .scoring import severity_counts
 from .graph import build_graph
+from .vulnscan.status import scan_status
 from .llm import LLMConfigError, get_llm
 from .logging_config import setup_logging
 
@@ -83,6 +85,11 @@ def audit(
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Modelo a usar (sobrescreve AUDITOR_MODEL)."
     ),
+    vuln_scan: Optional[bool] = typer.Option(
+        None, "--vuln-scan/--no-vuln-scan",
+        help="Verifica dependências/runtimes vulneráveis (envia nomes e versões de pacotes públicos "
+             "ao OSV.dev e ao endoflife.date). Padrão: AUDITOR_VULN_SCAN.",
+    ),
 ):
     """Executa uma auditoria completa em PATH e emite o relatório final."""
     # Provedor/modelo efetivos: flag da CLI ou default das settings. Passados via
@@ -122,6 +129,7 @@ def audit(
         "provider": eff_provider,
         "model": eff_model,
         "skip_questions": no_questions,
+        "vuln_scan": settings.vuln_scan if vuln_scan is None else vuln_scan,
         "user_context": {},
         "findings": [],
         "dimension_summaries": [],
@@ -171,6 +179,12 @@ def _print_summary(state: dict) -> None:
         )
     )
     console.print(table)
+
+    status = scan_status(state.get("dependency_scan"))
+    color_dep = "yellow" if status.incomplete else "cyan"
+    console.print(f"\n[bold]Dependências:[/bold] [{color_dep}]{escape(status.headline)}[/{color_dep}]")
+    for reason in status.reasons:
+        console.print(f"  - {escape(reason)}")
 
     v = state.get("verification") or {}
     if v.get("enabled"):

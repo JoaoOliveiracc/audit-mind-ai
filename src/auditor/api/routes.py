@@ -103,6 +103,7 @@ def create_audit(req: CreateAuditRequest) -> AuditSummary:
         "provider": provider,
         "model": model,
         "skip_questions": not req.interactive,
+        "vuln_scan": settings.vuln_scan if req.vuln_scan is None else req.vuln_scan,
         "user_context": {},
         "findings": [],
         "dimension_summaries": [],
@@ -261,6 +262,7 @@ def get_findings(audit_id: str) -> dict:
         "stack_profile": values.get("stack_profile", {}),
         "verification": values.get("verification", {}),
         "adversarial": values.get("adversarial", {}),
+        "dependency_scan": values.get("dependency_scan", {}),
     }
 
 

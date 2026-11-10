@@ -20,10 +20,12 @@ from ..prompts.templates import (
     INVESTIGATOR_PROMPT,
     SALVAGE_PROMPT,
     STRUCTURE_PROMPT,
+    VULN_SCAN_NOTE,
     WRAP_UP_NOTICE,
 )
 from ..state import AuditState, DimensionResult
 from ..tools.filesystem import make_project_tools
+from .dependency_scan import vuln_scan_enabled
 from ._messages import content_text
 
 
@@ -151,6 +153,8 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False),
     )
+    if vuln_scan_enabled(state):   # DUP-01: CVEs de dependências vêm da varredura determinística
+        prompt += "\n\n" + VULN_SCAN_NOTE
     max_calls = max(2, settings.max_investigator_steps // 2)
     # checkpointer=False (AD-001): o sub-agente nunca herda o checkpointer do grafo
     # pai — senão cada passo ReAct (com trechos de código) é persistido.

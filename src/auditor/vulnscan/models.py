@@ -1,6 +1,8 @@
 """Objetos de valor da varredura (imutáveis)."""
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 from dataclasses import dataclass, field
 
 
@@ -44,3 +46,13 @@ class ParseResult:
     dependencies: list[Dependency] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     skipped_files: list[str] = field(default_factory=list)
+
+
+# Achados determinísticos (G48): factuais, citam lockfiles — não vão ao juiz adversarial e o
+# verify aceita arquivos até MAX_LOCKFILE_BYTES para eles.
+DETERMINISTIC_SOURCES = frozenset({"osv", "endoflife"})
+MAX_LOCKFILE_BYTES = 50 * 1024 * 1024
+
+
+def is_deterministic(finding: Mapping[str, Any]) -> bool:
+    return finding.get("source") in DETERMINISTIC_SOURCES

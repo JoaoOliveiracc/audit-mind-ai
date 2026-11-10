@@ -21,6 +21,7 @@ from .nodes import (
     adversarial_node,
     audit_node,
     clarify_node,
+    dependency_scan_node,
     discovery_node,
     plan_questions_node,
     planning_node,
@@ -45,6 +46,7 @@ def build_graph(checkpointer=None):
     graph.add_node("clarify", clarify_node)
     graph.add_node("planning", planning_node)
     graph.add_node("audit", audit_node)
+    graph.add_node("dependency_scan", dependency_scan_node)
     graph.add_node("verify", verify_node)
     graph.add_node("adversarial", adversarial_node)
     graph.add_node("synthesis", synthesis_node)
@@ -55,7 +57,8 @@ def build_graph(checkpointer=None):
     graph.add_edge("plan_questions", "clarify")
     graph.add_edge("clarify", "planning")
     graph.add_edge("planning", "audit")
-    graph.add_edge("audit", "verify")
+    graph.add_edge("audit", "dependency_scan")       # G48: após o audit (que sobrescreve findings)
+    graph.add_edge("dependency_scan", "verify")
     graph.add_edge("verify", "adversarial")
     graph.add_edge("adversarial", "synthesis")
     graph.add_edge("synthesis", "report")

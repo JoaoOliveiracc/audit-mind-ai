@@ -59,3 +59,23 @@ Granularity: each task = one module/cohesive layer ✅. Dependencies linear with
   8. pnpm v5 keys (`/name/version`) parsed; unrecognized entries recorded as an error (never "clean" silently);
   9. `===` pins; `--find-links`/`-f` and private sources in `-r`/`-c` includes (within root, cycle-safe) skip the file;
   10. STATE handoff refreshed.
+
+## Phase 2 — execution notes
+- T6 `sources/__init__.py` (allowlisted `checked_client`, streaming `get_json` 5 MB cap, `SourceError`) + `sources/osv.py` (`OSVClient`: chunks of 500, pagination ≤ 10 pages, memoized parallel fetch, `Advisory.fixed_for`). Extra: advisory ids URL-encoded in the path (`quote(id, safe='')`). `httpx>=0.27` moved from [dev] to core.
+- T7 `sources/eol.py` (`EndOfLifeClient`, memo) + `runtime.evaluate` → `Evaluation(status, severity, message)`.
+- T8 `scanner.scan` (walk with `ignore_dirs` pruning, no symlinks; 50 MB lockfile cap; package grouped by `(eco, normalized name, version)`, private if any occurrence is private; cap `MAX_PACKAGES`; runtime finding recommends newest supported cycle).
+- T9 node `dependency_scan` (audit → dependency_scan → verify), `Settings.vuln_scan`, CLI `--vuln-scan/--no-vuln-scan`, API `vuln_scan`, `adversarial._eligible` skips osv/endoflife, `VULN_SCAN_NOTE` (DUP-01), `.lock` removed from binary extensions. Decision: `verify` allows up to 50 MB for deterministic findings (lockfiles exceed `max_file_bytes`) — FND-02.
+- T10 `vulnscan/status.py` (`scan_status`) used by MD/HTML report ("Dependências e Runtimes" section, always present), CLI summary and `/audits/{id}/findings` (`dependency_scan`). RPT-01 precision fix recorded in spec (with-findings wording; private-count suffix).
+- Suite: 360 → 440 (+80); 3.12 and 3.10 green; `make ci` exit 0.
+- `/code-review` after phase 2 — 10 findings, all fixed with regression tests (`tests/vulnscan/test_vs_review2_fixes.py`):
+  1. OSV/endoflife clients catch malformed shapes (`AttributeError`/`ValueError`, results not a list or wrong length) → recorded error;
+  2. node `dependency_scan` has a catch-all (scan error → stats `errors`, LLM findings kept, status "incompleta"); clients closed even if the second constructor fails; runtime detectors tolerate wrong JSON/TOML types;
+  3. symlinked files are skipped by the walker (could point outside the project);
+  4. status: `skipped_files` make the scan incomplete (with reasons);
+  5. pagination cap reached → recorded error (never silently complete);
+  6. headline mentions runtime alerts and unevaluated runtime declarations;
+  7. `verify` caches content + normalized text per file (one read per lockfile);
+  8. runtime "behind patch" recommends the same cycle's latest patch; EOL range titled "sem suporte" (`Evaluation.reason/latest`);
+  9. `_MIN_LINE_LEN` comment restored;
+  10. single rule `models.is_deterministic` / `DETERMINISTIC_SOURCES` / `MAX_LOCKFILE_BYTES`, shared `RUNTIME_LABELS`; dead `ctx["dependency_scan"]` removed.
+- Suite after fixes: 468 (3.12 and 3.10); `make ci` exit 0.

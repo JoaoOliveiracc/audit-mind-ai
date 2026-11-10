@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     # (separados por vírgula). Só para exposição deliberada (ver `serve --allow-remote`).
     allowed_hosts: str = Field(default="", alias="AUDITOR_ALLOWED_HOSTS")
 
+    # Varredura de dependências/runtimes vulneráveis (G48). Desligada por padrão: envia nomes e
+    # versões de pacotes PÚBLICOS ao OSV.dev e ao endoflife.date (AD-003).
+    vuln_scan: bool = Field(default=False, alias="AUDITOR_VULN_SCAN")
+
     # Diretórios ignorados na varredura
     ignore_dirs: tuple[str, ...] = (
         ".git", ".hg", ".svn", "node_modules", "venv", ".venv", "env",
@@ -125,7 +129,7 @@ class Settings(BaseSettings):
         ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".pdf", ".zip",
         ".gz", ".tar", ".jar", ".war", ".class", ".exe", ".dll", ".so",
         ".dylib", ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".mp3", ".mov",
-        ".lock", ".bin", ".wasm",
+        ".bin", ".wasm",   # ".lock" removido (G48): lockfiles são texto e relevantes
     )
 
 
