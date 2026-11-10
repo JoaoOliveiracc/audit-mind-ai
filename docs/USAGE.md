@@ -66,8 +66,14 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_FILE_BYTES` | `200000` | Max. bytes read per file. |
 | `AUDITOR_MAX_FILES` | `5000` | Max. files in the inventory. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Max. results per search. |
-| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `25` | Max. reasoning steps per investigator. |
+| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` per investigator (graph steps ≈ 2× tool calls). |
+| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
+| `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
+| `AUDITOR_VERIFY_EVIDENCE` | `true` | Deterministic evidence check (drops unsubstantiated findings). |
+| `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Skeptical LLM judge (costs tokens). |
+| `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Only judge findings at or above this severity. |
+| `AUDITOR_ADVERSARIAL_VOTES` | `1` | Verdicts per finding (1–3 distinct lenses; majority wins). |
 
 ## 3. Running an audit
 
@@ -81,8 +87,9 @@ Terminal flow:
 1. The agent detects the stack and shows progress.
 2. It asks clarification questions — answer them or press Enter to skip.
 3. It runs the investigators per dimension (live progress).
-4. It consolidates, scores, and writes the reports.
-5. It displays the summary and the paths of the generated files.
+4. It verifies each finding's evidence on disk (and, if enabled, runs the adversarial judge).
+5. It consolidates, scores, and writes the reports.
+6. It displays the summary and the paths of the generated files.
 
 ### Non-interactive mode (CI/automation)
 
@@ -119,7 +126,8 @@ credentials (AWS/gcloud).
 ```
 audit-reports/
 ├── auditoria-20260701-143022.md      # versionable, for the repository
-└── auditoria-20260701-143022.html    # self-contained, to share
+├── auditoria-20260701-143022.html    # self-contained, to share
+└── auditoria-20260701-143022.sarif   # SARIF 2.1.0 (GitHub Code Scanning / CI)
 ```
 
 ## 4. Interpreting the report
@@ -143,6 +151,7 @@ graph = build_graph()
 config = {"configurable": {"thread_id": "my-audit"}}
 
 state = {"project_path": "/proj", "user_goal": "", "user_context": {},
+         "provider": "anthropic", "model": "claude-sonnet-4-5",  # optional per-run override
          "findings": [], "dimension_summaries": []}
 
 # run until the clarification interrupt
@@ -163,7 +172,8 @@ print(final["health_score"], final["report_html_path"])
 | `auditor: command not found` | venv not activated / no global installation | Activate the venv or perform the global installation (§1). |
 | `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
 | `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
-| `Recursion limit reached` | project too large for the step count | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| `Recursion limit reached` / dimension with no findings and a "need more steps" summary | project too large for the step budget | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| `~/.config/auditor/audits-checkpoints.sqlite` grows by tens of MB per audit | sub-agent steps are checkpointed (known issue G29) | Delete old audits' DB files while the API is stopped; fix tracked in the roadmap. |
 | Slow/expensive audit | too many dimensions/files | Reduce `AUDITOR_MAX_FILES` or use `--goal` to narrow the focus. |
 | Few findings | insufficient context | Answer the clarification questions in detail. |
 

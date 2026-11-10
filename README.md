@@ -16,7 +16,7 @@ The agent discovers the project's stack, talks to you to clarify scope, runs spe
 - **Structured output** — findings validated by Pydantic (severity, evidence, recommendation, confidence).
 - **Professional report** — versionable Markdown + self-contained, styled HTML, with a 0–100 health score.
 - **SARIF export** — findings also emitted as SARIF 2.1.0, ready to upload to **GitHub Code Scanning** (inline PR alerts) or any SARIF-aware CI.
-- **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies.
+- **Secure by design** — tools are **read-only** and scoped to the project root (path-traversal protection). The agent audits, never modifies. See the threat model in [`SECURITY.md`](SECURITY.md) (open gaps are tracked in `DOCUMENTACAO.md` §10.3).
 
 ## 🏗️ Architecture at a glance
 
@@ -149,7 +149,8 @@ CORS setup needed; see `frontend/vite.config.ts`). Production build: `vite build
 ## 🧪 Tests
 
 ```bash
-pytest -q          # smoke tests (offline, no LLM)
+pytest -q                    # backend tests (offline, no LLM)
+cd frontend && npm test      # frontend tests (Vitest)
 ```
 
 ## 📚 Documentation

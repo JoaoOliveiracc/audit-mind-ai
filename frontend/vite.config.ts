@@ -2,9 +2,10 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// Dev: o Vite serve o frontend e faz proxy de /api (incl. WebSocket) para o
-// backend FastAPI em :8020 (porta padrão do `auditor serve`). Prod: `vite build`
-// -> dist/, servido por `auditor serve`.
+// Dev: o Vite serve o frontend e faz proxy das rotas da API (incl. o SSE de
+// /audits/{id}/stream) para o backend FastAPI em :8020 (porta padrão do
+// `auditor serve`). Prod: `vite build` -> dist/ (estático; o `auditor serve`
+// ainda NÃO serve o dist/ — ver G42 em DOCUMENTACAO.md).
 export default defineConfig({
   plugins: [react()],
   server: {

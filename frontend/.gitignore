@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# Cache de pré-bundle do Vite (dev server)
+.vite/
