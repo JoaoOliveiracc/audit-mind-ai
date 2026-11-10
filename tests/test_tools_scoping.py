@@ -100,3 +100,91 @@ def test_has_tests_true_when_project_has_tests_dir(tmp_path):
     (root / "tests").mkdir(parents=True)
     (root / "tests" / "test_x.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
     assert detect_stack(root, Settings()).has_tests is True
+
+
+# --- G34: busca podada + glob por segmento (search-and-judge-perf: SRCH-01..07) ---------
+import os  # noqa: E402
+
+_FILES = ["top.py", "README.md", "src/a.py", "src/b.ts", "src/deep/c.py", "src/deep/test_x.py",
+          "tests/test_y.py", "node_modules/pkg/index.js", "node_modules/pkg/z.py", ".venv/lib/v.py"]
+
+
+@pytest.fixture
+def tree(tmp_path: Path) -> Path:
+    root = tmp_path / "proj"
+    for rel in _FILES:
+        f = root / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("NEEDLE\n", encoding="utf-8")
+    (root / "linkdir").symlink_to(root / "src" / "deep", target_is_directory=True)
+    return root
+
+
+def _found(root: Path, glob: str) -> list[str]:
+    out = _search(root, pattern="NEEDLE", glob=glob)
+    return [] if out == "(nenhum resultado)" else [line.split(":", 1)[0] for line in out.splitlines()]
+
+
+@pytest.mark.parametrize("glob, expected", [
+    ("**/*", ["README.md", "src/a.py", "src/b.ts", "src/deep/c.py", "src/deep/test_x.py",
+              "tests/test_y.py", "top.py"]),
+    ("*.py", ["top.py"]),
+    ("src/*.py", ["src/a.py"]),
+    ("**/*.py", ["src/a.py", "src/deep/c.py", "src/deep/test_x.py", "tests/test_y.py", "top.py"]),
+    ("src/**/*.py", ["src/a.py", "src/deep/c.py", "src/deep/test_x.py"]),
+    ("**/test_*.py", ["src/deep/test_x.py", "tests/test_y.py"]),
+    ("src/**", ["src/a.py", "src/b.ts", "src/deep/c.py", "src/deep/test_x.py"]),
+])
+def test_srch02_glob_semantics_and_srch07_order(tree, glob, expected):
+    assert _found(tree, glob) == expected            # lista exata e ordenada (SRCH-07)
+
+
+@pytest.fixture
+def scanned(monkeypatch):
+    seen: list[str] = []
+    real = os.scandir
+
+    def spy(path="."):
+        seen.append(os.path.normpath(os.fspath(path)))   # caminho literal (não resolve links)
+        return real(path)
+
+    monkeypatch.setattr(os, "scandir", spy)
+    return seen
+
+
+def test_srch01_ignored_dirs_are_never_listed(tree, scanned):
+    _found(tree, "**/*")
+    root = str(tree)
+    for ignored in ("node_modules", ".venv"):
+        assert not any(p == os.path.join(root, ignored) or p.startswith(os.path.join(root, ignored) + os.sep)
+                       for p in scanned), ignored
+
+
+def test_srch03_depth_bounded_glob_does_not_descend(tree, scanned):
+    assert _found(tree, "src/*.py") == ["src/a.py"]
+    assert os.path.join(str(tree), "src", "deep") not in scanned
+
+
+def test_srch04_symlinked_dirs_are_not_descended(tree, scanned):
+    found = _found(tree, "**/*")
+    assert not any(f.startswith("linkdir/") for f in found)
+    link = os.path.join(str(tree), "linkdir")
+    assert not any(p == link or p.startswith(link + os.sep) for p in scanned)   # nunca listado
+    assert found.count("src/deep/c.py") == 1          # alvo pesquisado uma vez, pelo caminho real
+
+
+@pytest.mark.parametrize("glob", ["", "."])
+def test_srch06_empty_or_dot_glob_is_a_tool_error(tree, glob):
+    assert _search(tree, pattern="NEEDLE", glob=glob).startswith("ERRO:")
+
+
+
+# --- SRCH-08: só DIRETÓRIOS são ignorados; arquivos com esses nomes são pesquisados ---------
+@pytest.mark.parametrize("name", ["build", "env", "bin", "out"])
+def test_srch08_files_named_like_ignored_dirs_are_searched(tmp_path, name):
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / name).write_text("NEEDLE\n", encoding="utf-8")
+    (root / "scripts").mkdir()
+    (root / "scripts" / name).write_text("NEEDLE\n", encoding="utf-8")
+    assert _found(root, "**/*") == [name, f"scripts/{name}"]          # ordem de caminho (SRCH-07)

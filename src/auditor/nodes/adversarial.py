@@ -8,6 +8,7 @@ escopado por severidade.
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -97,6 +98,26 @@ def _judge_once(finding: dict, code_context: str, lens: str, llm) -> Verdict:
     return llm.invoke([SystemMessage(content=JUDGE_SYSTEM), HumanMessage(content=prompt)])
 
 
+def _judge_votes(finding: dict, code_context: str, votes: int,
+                 llm) -> tuple[list[str], str, list[str]]:
+    """Coleta os vereditos de um achado (lentes em sequência). Roda numa thread do pool.
+
+    Retorna (vereditos, última justificativa, erros) — falha de uma lente não derruba as demais.
+    """
+    verdicts: list[str] = []
+    rationale = ""
+    errors: list[str] = []
+    for i in range(votes):
+        try:
+            v = _judge_once(finding, code_context, JUDGE_LENSES[i], llm)
+        except Exception as exc:  # falha do juiz não derruba a auditoria
+            errors.append(str(exc))
+            continue
+        verdicts.append((v.verdict or "uncertain").lower())
+        rationale = v.rationale or rationale
+    return verdicts, rationale, errors
+
+
 def _aggregate(verdicts: list[str], votes: int) -> str:
     confirmed = sum(1 for v in verdicts if v == "confirmed")
     refuted = sum(1 for v in verdicts if v == "refuted")
@@ -126,26 +147,28 @@ def adversarial_node(state: AuditState) -> dict:
     stats: dict[str, Any] = {"enabled": True, "judged": 0, "confirmed": 0, "refuted": 0,
              "uncertain": 0, "refuted_titles": []}
 
-    for finding in findings:
-        if not _eligible(finding, min_rank):
-            kept.append(finding)  # abaixo do limiar / sem arquivo: passa intacto
+    # G35: os julgamentos (I/O de LLM) rodam em paralelo; a agregação abaixo segue a
+    # ordem de entrada, então resultado e estatísticas são idênticos ao modo sequencial.
+    contexts = {idx: _code_context(root, f, settings)
+                for idx, f in enumerate(findings) if _eligible(f, min_rank)}
+    to_judge = {idx: ctx for idx, ctx in contexts.items() if ctx is not None}
+    judged: dict[int, tuple[list[str], str, list[str]]] = {}
+    if to_judge:
+        workers = max(1, min(int(settings.max_concurrent_investigators), len(to_judge)))
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="judge") as pool:
+            futures = {pool.submit(_judge_votes, findings[idx], ctx, votes, llm): idx
+                       for idx, ctx in to_judge.items()}
+            for future in as_completed(futures):
+                judged[futures[future]] = future.result()
+
+    for idx, finding in enumerate(findings):
+        if idx not in judged:
+            kept.append(finding)  # inelegível / sem contexto: passa intacto, sem julgar
             continue
 
-        code_context = _code_context(root, finding, settings)
-        if code_context is None:
-            kept.append(finding)  # sem como obter contexto: não julga
-            continue
-
-        verdicts: list[str] = []
-        rationale = ""
-        for i in range(votes):
-            try:
-                v = _judge_once(finding, code_context, JUDGE_LENSES[i], llm)
-            except Exception as exc:  # falha do juiz não derruba a auditoria
-                _console.print(f"[yellow]  aviso: juiz falhou em '{finding.get('title')}': {exc}[/yellow]")
-                continue
-            verdicts.append((v.verdict or "uncertain").lower())
-            rationale = v.rationale or rationale
+        verdicts, rationale, errors = judged[idx]
+        for err in errors:  # console só na thread principal
+            _console.print(f"[yellow]  aviso: juiz falhou em '{finding.get('title')}': {err}[/yellow]")
 
         stats["judged"] += 1
         if not verdicts:

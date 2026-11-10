@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/history-polish/` (G45/G46) — verified PASS after fix loop 1
+- **Feature**: `.specs/features/search-and-judge-perf/` (G34/G35) — verified PASS after fix loop 1
 - **Phase / Task**: complete
-- **Completed**: G25–G33, G36–G38, G44–G46 (G40 partial)
+- **Completed**: G25–G38, G44–G46 (G40 partial)
 - **In-progress**: none
-- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G34/G35 (perf), G39 (coverage), G40 rest, G41 (duplication), G42 (frontend: SARIF download, ChatDock), test writing ~/.config/auditor
+- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G39 (coverage: discovery/planning/clarify + e2e with fake LLM), G40 rest (requirements.txt single source, provider extra floors), G41 (duplication: _emit, NODE_LABELS, severity counts), G42 (SARIF download, ChatDock), test writing ~/.config/auditor
 - **Blockers**: none
-- **Uncommitted files**: history-polish (renderer, report node, App/History, tests, docs, .specs/)
+- **Uncommitted files**: search-and-judge-perf (filesystem.py, adversarial.py, tests, docs, .specs/)
 - **Branch**: develop
