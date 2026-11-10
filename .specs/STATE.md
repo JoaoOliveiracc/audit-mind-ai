@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/create-agent-migration/` (G44) — verified PASS after fix loop 1; `ci-quality-gates` also verified, both uncommitted
+- **Feature**: `.specs/features/history-polish/` (G45/G46) — verified PASS after fix loop 1
 - **Phase / Task**: complete
-- **Completed**: G25–G33, G36–G38, G44 (G40 partial)
+- **Completed**: G25–G33, G36–G38, G44–G46 (G40 partial)
 - **In-progress**: none
-- **Next step**: user commits + pushes and checks the first GitHub Actions run. Backlog (DOCUMENTACAO.md §10.3): G46, G45, G34/G35, G39, G40 rest, G41, G42, test writing ~/.config/auditor
+- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G34/G35 (perf), G39 (coverage), G40 rest, G41 (duplication), G42 (frontend: SARIF download, ChatDock), test writing ~/.config/auditor
 - **Blockers**: none
-- **Uncommitted files**: ci-quality-gates + create-agent-migration (shared: `src/auditor/nodes/audit.py`, `pyproject.toml`, docs)
+- **Uncommitted files**: history-polish (renderer, report node, App/History, tests, docs, .specs/)
 - **Branch**: develop

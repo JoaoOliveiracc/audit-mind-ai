@@ -33,6 +33,8 @@ export default function App() {
   const [startError, setStartError] = useState<string | null>(null)
   const [auditId, setAuditId] = useState<string | null>(null)
   const [projectPath, setProjectPath] = useState<string | null>(null)
+  /** Auditoria com retomada em voo (desabilita o botão; evita 409 de clique duplo). */
+  const [resumingId, setResumingId] = useState<string | null>(null)
   const streamRef = useRef<AuditStream | null>(null)
 
   const refreshHistory = () => listAudits().then(setHistory).catch(() => setHistory([]))
@@ -119,6 +121,8 @@ export default function App() {
 
   /** Retoma uma auditoria interrompida e conecta ao stream ao vivo. */
   const handleResumeAudit = async (summary: AuditSummary) => {
+    if (resumingId) return
+    setResumingId(summary.id)
     streamRef.current?.close()
     setStartError(null)
     try {
@@ -130,6 +134,8 @@ export default function App() {
     } catch (err) {
       setStartError(err instanceof Error ? err.message : String(err))
       refreshHistory()
+    } finally {
+      setResumingId(null)
     }
   }
 
@@ -139,6 +145,15 @@ export default function App() {
     setStartError(null)
     // Revalida o status: a lista pode estar defasada (auditoria concluiu desde então).
     const a = await getAudit(summary.id).catch(() => summary)
+    // Sem runner vivo, o stream daria 404 ("Conexão perdida"): orienta em vez de conectar.
+    if (a.status === 'interrupted') {
+      setStartError('Auditoria interrompida — use Retomar para continuar do último checkpoint.')
+      return
+    }
+    if (a.status === 'error') {
+      setStartError(a.error ? `Auditoria falhou: ${a.error}` : 'Auditoria falhou.')
+      return
+    }
     setAuditId(a.id)
     setProjectPath(a.project_path)
     if (a.status === 'completed') {
@@ -154,7 +169,7 @@ export default function App() {
         setStartError(err instanceof Error ? err.message : String(err))
       }
     } else {
-      // running / waiting_input / error: o runner faz replay do log acumulado.
+      // running / waiting_input: o runner (vivo) faz replay do log acumulado.
       dispatch({ type: 'START' })
       openStream(a.id)
     }
@@ -194,6 +209,7 @@ export default function App() {
             )}
             <History audits={history} onOpen={handleOpenAudit} onDelete={handleDeleteAudit}
               onResume={handleResumeAudit}
+              busyId={resumingId}
             />
           </>
         )}

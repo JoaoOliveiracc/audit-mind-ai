@@ -1,6 +1,8 @@
 """Renderização do relatório de auditoria em Markdown e HTML."""
 from __future__ import annotations
 
+import re
+import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -170,17 +172,44 @@ def render_html(ctx: dict[str, Any]) -> str:
     return template.render(**ctx)
 
 
-def write_reports(state: dict[str, Any], output_dir: Path) -> tuple[Path, Path, Path]:
-    """Renderiza e grava os relatórios Markdown, HTML e SARIF; retorna os caminhos."""
+_REPORT_SUFFIXES = (".md", ".html", ".sarif")
+
+
+def _id8(run_id: str | None) -> str:
+    """8 primeiros alfanuméricos do id da execução (rastreável no histórico); senão, aleatório."""
+    cleaned = re.sub(r"[^0-9A-Za-z]", "", run_id or "")
+    return cleaned[:8] if cleaned else secrets.token_hex(4)
+
+
+def _free_base(output_dir: Path, base: str) -> str:
+    """Primeiro ``base``/``base-2``/… para o qual nenhum dos 3 arquivos existe (G45)."""
+    candidate, n = base, 1
+    while any((output_dir / f"{candidate}{suffix}").exists() for suffix in _REPORT_SUFFIXES):
+        n += 1
+        candidate = f"{base}-{n}"
+    return candidate
+
+
+def _write_new(path: Path, content: str) -> None:
+    with path.open("x", encoding="utf-8") as fh:  # "x": nunca sobrescreve
+        fh.write(content)
+
+
+def write_reports(state: dict[str, Any], output_dir: Path,
+                  run_id: str | None = None) -> tuple[Path, Path, Path]:
+    """Renderiza e grava os relatórios Markdown, HTML e SARIF; retorna os caminhos.
+
+    Nome: ``auditoria-AAAAMMDD-HHMMSS-<id8>`` (``id8`` = id da auditoria/thread) e,
+    se algum nome já existir, sufixo ``-2``, ``-3``… — um relatório nunca sobrescreve outro.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now()
     stamp = now.strftime("%Y%m%d-%H%M%S")
     ctx = build_context(state, generated_at=now.strftime("%Y-%m-%d %H:%M:%S"))
 
-    md_path = output_dir / f"auditoria-{stamp}.md"
-    html_path = output_dir / f"auditoria-{stamp}.html"
-    sarif_path = output_dir / f"auditoria-{stamp}.sarif"
-    md_path.write_text(render_markdown(ctx), encoding="utf-8")
-    html_path.write_text(render_html(ctx), encoding="utf-8")
-    sarif_path.write_text(render_sarif(state), encoding="utf-8")
+    base = _free_base(output_dir, f"auditoria-{stamp}-{_id8(run_id)}")
+    md_path, html_path, sarif_path = (output_dir / f"{base}{s}" for s in _REPORT_SUFFIXES)
+    _write_new(md_path, render_markdown(ctx))
+    _write_new(html_path, render_html(ctx))
+    _write_new(sarif_path, render_sarif(state))
     return md_path, html_path, sarif_path

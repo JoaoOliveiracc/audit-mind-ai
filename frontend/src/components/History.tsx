@@ -25,10 +25,12 @@ interface Props {
   onDelete: (a: AuditSummary) => void
   /** Retomada de auditoria `interrupted` (órfã após restart da API). */
   onResume: (a: AuditSummary) => void
+  /** Id com retomada em voo: o botão Retomar fica desabilitado ("Retomando…"). */
+  busyId?: string | null
 }
 
 /** Histórico de auditorias locais — clique reabre os achados (ou o stream, se em curso). */
-export default function History({ audits, onOpen, onDelete, onResume }: Props) {
+export default function History({ audits, onOpen, onDelete, onResume, busyId = null }: Props) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   if (audits.length === 0) return null
   return (
@@ -61,9 +63,10 @@ export default function History({ audits, onOpen, onDelete, onResume }: Props) {
                 className="btn shrink-0 !px-2 !text-xs"
                 aria-label={`Retomar auditoria de ${a.project_path}`}
                 title="Retomar do último checkpoint"
+                disabled={busyId === a.id}
                 onClick={() => onResume(a)}
               >
-                Retomar
+                {busyId === a.id ? 'Retomando…' : 'Retomar'}
               </button>
             )}
             {confirmingId === a.id ? (
