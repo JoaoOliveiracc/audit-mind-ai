@@ -50,6 +50,6 @@ See `DOCUMENTACAO.md` §10.3 for the full list (G25–G43).
 - [ ] Signed audit trail (provenance of findings).
 
 ## Ideas under evaluation
-- "Chat with the report" mode (questions about the findings after the audit).
+- [x] "Chat with the report" mode (questions about the findings after the audit) — `POST /audits/{id}/chat` + ChatDock (G42).
 - Prioritization by estimated remediation effort.
 - Technical debt estimation in hours.

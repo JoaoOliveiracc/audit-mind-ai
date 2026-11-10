@@ -128,7 +128,8 @@ auditor serve            # http://127.0.0.1:8020 — interactive docs at /docs
 ```
 
 Endpoints: `POST /audits` (start), `GET /audits` / `GET /audits/{id}` (list/status),
-`DELETE /audits/{id}` (removes metadata, checkpoints and reports), `POST /audits/{id}/resume`
+`DELETE /audits/{id}` (removes metadata, checkpoints and reports), `POST /audits/{id}/chat`
+(questions about a completed audit's report — no code access), `POST /audits/{id}/resume`
 (continues an audit interrupted by an API restart),
 `GET /audits/{id}/stream` (SSE for progress and clarifications), `POST /audits/{id}/answers`
 (human-in-the-loop), `GET /audits/{id}/findings` (JSON), `GET /audits/{id}/report?format=html|md|sarif`,

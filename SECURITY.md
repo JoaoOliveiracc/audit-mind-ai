@@ -50,6 +50,9 @@ The project being audited is **untrusted input**:
   scoped to the project root; `verify` drops findings whose evidence is not on disk; the HTML
   report is autoescaped (no stored XSS). Findings can still be *suppressed* — treat the report
   as a decision aid.
+- **Report chat:** `POST /audits/{id}/chat` sends the saved report (which contains audited-code
+  excerpts) to the audit's LLM provider, delimited as untrusted data; it never reads files. The
+  conversation is kept only in the browser tab.
 - **Root scoping:** every tool resolves symlinks and rejects paths outside the root;
   `search_code` also rejects absolute globs and globs with a `..` component (G25/G26, fixed).
 - **Local API:** binds to `127.0.0.1`, no authentication, CORS limited to the Vite dev origin.
