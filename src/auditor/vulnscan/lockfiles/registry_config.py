@@ -1,10 +1,11 @@
-"""Configuração de registro npm do projeto (.npmrc, .yarnrc.yml) — LOCK-03.
+"""Configuração de registro npm (.npmrc, .yarnrc.yml, variáveis de ambiente) — LOCK-03.
 
 Necessária porque os lockfiles do yarn berry e do pnpm não guardam o host do registro: um
 escopo (ou o registro padrão) apontado para um host privado torna os pacotes privados.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -40,9 +41,24 @@ def _apply(cfg: RegistryConfig, scope: str | None, url: str) -> None:
 
 
 def load_registry_config(*dirs: Path) -> RegistryConfig:
-    """Lê ``.npmrc`` e ``.yarnrc.yml`` de cada diretório (raiz e pasta do lockfile)."""
+    """Lê ``.npmrc``/``.yarnrc.yml`` do usuário (``~``), de cada diretório dado (raiz e pasta do
+    lockfile) e as variáveis ``npm_config_*registry``/``YARN_NPM_REGISTRY_SERVER``.
+
+    Conservador: qualquer fonte que aponte para host não público marca como privado — um registro
+    corporativo no ``~/.npmrc`` é comum e os lockfiles do pnpm/yarn berry não guardam o host.
+    """
     cfg = RegistryConfig()
-    for d in dict.fromkeys(dirs):
+    for key, value in os.environ.items():
+        lower = key.lower()
+        if lower in ("npm_config_registry", "yarn_npm_registry_server"):
+            _apply(cfg, None, value)
+        elif lower.startswith("npm_config_@") and lower.endswith(":registry"):
+            _apply(cfg, lower[len("npm_config_"):-len(":registry")], value)
+    try:
+        home: list[Path] = [Path.home()]
+    except RuntimeError:
+        home = []
+    for d in dict.fromkeys([*home, *dirs]):
         for raw in _read(d / ".npmrc").splitlines():
             line = raw.strip()
             if not line or line.startswith(("#", ";")) or "=" not in line:

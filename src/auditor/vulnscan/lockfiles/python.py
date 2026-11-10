@@ -1,7 +1,9 @@
 """Lockfiles Python (PyPI): poetry.lock, uv.lock, Pipfile.lock, requirements*.txt."""
 from __future__ import annotations
 
+import configparser
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -34,11 +36,31 @@ def _public_index(url: str | None) -> bool:
     return parsed.scheme == "https" and parsed.hostname in _PUBLIC_HOSTS
 
 
-def _version_lines(lines: list[str], name_raw: str) -> int:
-    """Linha ``version = …`` da seção ``[[package]]`` cujo ``name`` é ``name_raw``."""
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == f'name = "{name_raw}"'), 0)
-    return next((i + 1 for i in range(start, len(lines)) if lines[i].startswith("version = ")),
-                start + 1)
+_TOML_STR = re.compile(r'^(name|version) = "([^"]*)"')
+
+
+def _package_version_lines(lines: list[str]) -> dict[tuple[str, str], int]:
+    """``{(name, version): linha de "version = …"}`` por bloco ``[[package]]`` (uma passada).
+
+    A chave inclui a versão: poetry/uv podem ter o mesmo pacote em várias versões (markers).
+    """
+    out: dict[tuple[str, str], int] = {}
+    name: str | None = None
+    version: tuple[str, int] | None = None
+    for i, ln in enumerate(lines + ["[[package]]"]):
+        if ln.startswith("[["):
+            if name is not None and version is not None:
+                out.setdefault((name, version[0]), version[1])
+            name, version = None, None
+            continue
+        if ln.startswith("["):          # sub-tabela ([package.metadata] …): fim dos campos do bloco
+            continue
+        match = _TOML_STR.match(ln)
+        if match and match.group(1) == "name" and name is None:
+            name = match.group(2)
+        elif match and match.group(1) == "version" and version is None:
+            version = (match.group(2), i + 1)
+    return out
 
 
 def _load_toml(path: Path, rel: str) -> tuple[dict[str, Any] | None, list[str], str]:
@@ -55,7 +77,7 @@ def parse_poetry_lock(path: Path, rel: str, root: Path) -> ParseResult:
     data, errors, text = _load_toml(path, rel)
     if data is None:
         return ParseResult(errors=errors)
-    lines = text.splitlines()
+    version_line = _package_version_lines(text.splitlines())
     result = ParseResult()
     for pkg in data.get("package") or []:
         if not isinstance(pkg, dict) or not pkg.get("name") or not pkg.get("version"):
@@ -67,7 +89,8 @@ def parse_poetry_lock(path: Path, rel: str, root: Path) -> ParseResult:
                                         and _public_index(source.get("url")))
         result.dependencies.append(Dependency(
             ecosystem=ECO, name=normalize_name(ECO, str(pkg["name"])), version=str(pkg["version"]),
-            file=rel, line=_version_lines(lines, str(pkg["name"])), dev=dev, private=private))
+            file=rel, line=version_line.get((str(pkg["name"]), str(pkg["version"])), 1), dev=dev,
+            private=private))
     return result
 
 
@@ -90,7 +113,7 @@ def parse_uv_lock(path: Path, rel: str, root: Path) -> ParseResult:
         for group in (pkg.get("dev-dependencies") or {}).values():
             for dep in group or []:
                 dev_names.add(normalize_name(ECO, str(dep.get("name", ""))))
-    lines = text.splitlines()
+    version_line = _package_version_lines(text.splitlines())
     result = ParseResult()
     for pkg in packages:
         if not pkg.get("name") or not pkg.get("version"):
@@ -101,12 +124,32 @@ def parse_uv_lock(path: Path, rel: str, root: Path) -> ParseResult:
         private = registry is None or not _public_index(str(registry))  # editable/git/path ⇒ privado
         result.dependencies.append(Dependency(
             ecosystem=ECO, name=name, version=str(pkg["version"]), file=rel,
-            line=_version_lines(lines, str(pkg["name"])),
+            line=version_line.get((str(pkg["name"]), str(pkg["version"])), 1),
             dev=name in dev_names and name not in runtime_names, private=private))
     return result
 
 
 # --- Pipfile.lock ------------------------------------------------------------------------
+_JSON_KEY = re.compile(r'^(\s*)"([^"]+)":')
+
+
+def _pipfile_version_lines(lines: list[str]) -> dict[tuple[str, str], int]:
+    """``{(seção, nome): linha do "version"}`` respeitando a seção (mesmo nome em default e develop)."""
+    out: dict[tuple[str, str], int] = {}
+    section_indent: int | None = None
+    section = current = None
+    for i, ln in enumerate(lines):
+        match = _JSON_KEY.match(ln)
+        if not match:
+            continue
+        indent, key = len(match.group(1)), match.group(2)
+        if section_indent is None or indent <= section_indent:
+            section, section_indent, current = key, indent, None
+        elif current is None or indent <= current[1]:
+            current = (key, indent)
+        elif key == "version" and section and (section, current[0]) not in out:
+            out[(section, current[0])] = i + 1
+    return out
 @register("Pipfile.lock")
 def parse_pipfile_lock(path: Path, rel: str, root: Path) -> ParseResult:
     try:
@@ -119,7 +162,7 @@ def parse_pipfile_lock(path: Path, rel: str, root: Path) -> ParseResult:
     sources = {s.get("name"): s.get("url") for s in (data.get("_meta") or {}).get("sources") or []
                if isinstance(s, dict)}
     default_index = next(iter(sources.values()), None)
-    lines = text.splitlines()
+    version_line = _pipfile_version_lines(text.splitlines())
     result = ParseResult()
     for section, dev in (("default", False), ("develop", True)):
         for raw_name, meta in (data.get(section) or {}).items():
@@ -129,8 +172,7 @@ def parse_pipfile_lock(path: Path, rel: str, root: Path) -> ParseResult:
             index_url = sources.get(meta["index"]) if "index" in meta else default_index
             private = unknown_index or any(k in meta for k in ("git", "path", "file", "editable")) \
                 or not _public_index(index_url)
-            start = next((i for i, ln in enumerate(lines) if ln.strip().startswith(f'"{raw_name}"')), 0)
-            line = next((i + 1 for i in range(start, len(lines)) if '"version"' in lines[i]), start + 1)
+            line = version_line.get((section, raw_name), 1)
             result.dependencies.append(Dependency(
                 ecosystem=ECO, name=normalize_name(ECO, raw_name),
                 version=str(meta["version"])[2:], file=rel, line=line, dev=dev, private=private))
@@ -171,13 +213,62 @@ def _declares_private_source(path: Path, root: Path, seen: set[Path], depth: int
     return False
 
 
+_PIP_ENV_INDEXES = ("PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "UV_INDEX_URL", "UV_EXTRA_INDEX_URL",
+                    "UV_INDEX", "UV_DEFAULT_INDEX")
+_PIP_ENV_LINKS = ("PIP_FIND_LINKS", "UV_FIND_LINKS")
+_SYSTEM_PIP_CONFIGS = (Path("/etc/pip.conf"), Path("/etc/xdg/pip/pip.conf"))
+
+
+def _pip_config_files() -> list[Path]:
+    files = [Path(os.environ["PIP_CONFIG_FILE"])] if os.environ.get("PIP_CONFIG_FILE") else []
+    try:
+        home = Path.home()
+        xdg = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
+        files += [xdg / "pip" / "pip.conf", home / ".pip" / "pip.conf"]
+    except RuntimeError:
+        pass
+    return files + list(_SYSTEM_PIP_CONFIGS)
+
+
+def _urls(value: str) -> list[str]:
+    return [u for u in re.split(r"[\s,]+", value) if u]
+
+
+def global_pip_source_is_private() -> bool:
+    """Índice/``find-links`` fora do PyPI no ambiente ou no ``pip.conf`` do usuário/sistema.
+
+    Afeta todo ``requirements*.txt`` (que não registra a origem de cada pacote); poetry/uv/Pipfile
+    gravam a origem no próprio lockfile. Config ilegível ⇒ dúvida ⇒ privado.
+    """
+    if any(os.environ.get(v) for v in _PIP_ENV_LINKS):
+        return True
+    for var in _PIP_ENV_INDEXES:
+        if any(not _public_index(u) for u in _urls(os.environ.get(var, ""))):
+            return True
+    for conf in _pip_config_files():
+        try:
+            if not conf.is_file():
+                continue
+            parser = configparser.ConfigParser(interpolation=None)
+            parser.read_string(conf.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, configparser.Error):
+            return True
+        for section in parser.sections():
+            if parser.get(section, "find-links", fallback=""):
+                return True
+            for key in ("index-url", "extra-index-url"):
+                if any(not _public_index(u) for u in _urls(parser.get(section, key, fallback=""))):
+                    return True
+    return False
+
+
 def parse_requirements(path: Path, rel: str, root: Path) -> ParseResult:
     """Só pins exatos ``nome==versão``. Índice fora do PyPI ⇒ o arquivo inteiro é pulado (LOCK-03)."""
     try:
         lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError as exc:
         return ParseResult(errors=[f"{rel}: ilegível ({exc})"])
-    if _declares_private_source(path, root.resolve(), set(), 0):
+    if global_pip_source_is_private() or _declares_private_source(path, root.resolve(), set(), 0):
         return ParseResult(skipped_files=[rel])
     dev = bool(_DEV_FILE.match(Path(rel).name))
     result = ParseResult()

@@ -18,6 +18,7 @@ from .config import get_settings
 from .events import NODE_ICONS, NODE_LABELS
 from .scoring import severity_counts
 from .graph import build_graph
+from .nodes.dependency_scan import resolve_vuln_scan
 from .vulnscan.status import scan_status
 from .llm import LLMConfigError, get_llm
 from .logging_config import setup_logging
@@ -129,7 +130,7 @@ def audit(
         "provider": eff_provider,
         "model": eff_model,
         "skip_questions": no_questions,
-        "vuln_scan": settings.vuln_scan if vuln_scan is None else vuln_scan,
+        "vuln_scan": resolve_vuln_scan(vuln_scan),
         "user_context": {},
         "findings": [],
         "dimension_summaries": [],

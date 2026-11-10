@@ -20,10 +20,13 @@ from ..vulnscan.sources.osv import OSVClient
 _console = Console(stderr=True)
 
 
-def vuln_scan_enabled(state: AuditState | dict[str, Any]) -> bool:
-    """Flag da execução (CLI/API) ou, ausente, ``AUDITOR_VULN_SCAN``."""
-    flag = state.get("vuln_scan")
+def resolve_vuln_scan(flag: bool | None) -> bool:
+    """Regra única de precedência: flag da execução (CLI/API/web) vence ``AUDITOR_VULN_SCAN``."""
     return bool(get_settings().vuln_scan if flag is None else flag)
+
+
+def vuln_scan_enabled(state: AuditState | dict[str, Any]) -> bool:
+    return resolve_vuln_scan(state.get("vuln_scan"))
 
 
 def _failed_stats(error: str) -> dict[str, Any]:

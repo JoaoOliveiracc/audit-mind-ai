@@ -7,10 +7,12 @@ from pathlib import Path
 
 from ..models import Dependency, ParseResult
 from . import register
+from ._lines import NextLine, first_index
 
 ECO = "Packagist"
 _PACKAGIST_NOTIFY = "https://packagist.org/downloads/"
 _RELEASE = re.compile(r"^v?\d")
+_NAME = re.compile(r'"name": "([^"]+)"')
 
 
 @register("composer.lock")
@@ -29,6 +31,8 @@ def parse_composer_lock(path: Path, rel: str, root: Path) -> ParseResult:
         return result
 
     lines = text.splitlines()
+    name_line = first_index(lines, lambda ln: m.group(1) if (m := _NAME.search(ln)) else None)
+    version_line = NextLine(lines, '"version"')
     for packages, dev in sections:
         for pkg in packages:
             if not isinstance(pkg, dict) or not pkg.get("name") or not pkg.get("version"):
@@ -38,8 +42,7 @@ def parse_composer_lock(path: Path, rel: str, root: Path) -> ParseResult:
             version = raw_version[1:] if raw_version[:1] in "vV" and is_release else raw_version
             # Só packagist.org garante pacote público: dist do GitHub vale também para repo privado.
             private = pkg.get("notification-url") != _PACKAGIST_NOTIFY or not is_release
-            start = next((i for i, ln in enumerate(lines) if f'"name": "{name}"' in ln), 0)
-            line = next((i + 1 for i in range(start, len(lines)) if '"version"' in lines[i]), start + 1)
+            line = version_line.after(name_line.get(name, 0))
             result.dependencies.append(Dependency(
                 ecosystem=ECO, name=name, version=version, file=rel, line=line, dev=dev,
                 private=private))

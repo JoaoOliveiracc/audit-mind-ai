@@ -136,13 +136,16 @@ def scan(root: Path, settings: Any, osv: VulnSource, eol: CycleSource,
     decls: list[RuntimeDecl] = []
     for path in _walk(root, settings.ignore_dirs):
         rel = path.relative_to(root).as_posix()
-        parsed = _parse_file(path, rel, root)
-        if parsed is not None:
-            deps.extend(parsed.dependencies)
-            errors.extend(parsed.errors)
-            skipped_files.extend(parsed.skipped_files)
-        if is_runtime_file(path.name):
-            decls.extend(detect_in_file(path, rel))
+        try:   # um arquivo malformado nunca descarta o resultado dos demais
+            parsed = _parse_file(path, rel, root)
+            if parsed is not None:
+                deps.extend(parsed.dependencies)
+                errors.extend(parsed.errors)
+                skipped_files.extend(parsed.skipped_files)
+            if is_runtime_file(path.name):
+                decls.extend(detect_in_file(path, rel))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{rel}: falha ao ler ({exc.__class__.__name__}: {exc})")
 
     by_key: dict[DepKey, list[Dependency]] = {}
     for dep in deps:

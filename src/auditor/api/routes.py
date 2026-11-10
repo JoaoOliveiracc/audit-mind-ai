@@ -5,6 +5,7 @@ import asyncio
 import json
 import threading
 import uuid
+from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
 
@@ -16,6 +17,8 @@ from ..chat import build_chat_messages
 from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
 from ..llm import LLMConfigError, get_llm
 from ..nodes._messages import content_text
+from ..nodes.dependency_scan import resolve_vuln_scan
+from ..vulnscan.status import scan_status
 from .deps import get_checkpointer, get_graph, get_store, registry
 from .retention import AuditBusyError, AuditNotFoundError, delete_audit
 from .runner import AuditRunner
@@ -45,6 +48,12 @@ def list_providers() -> list[ProviderInfo]:
                      credential_env=PROVIDER_ENV_VAR.get(p))
         for p in PROVIDER_PACKAGE
     ]
+
+
+@router.get("/defaults")
+def get_defaults() -> dict:
+    """Padrões do servidor para o formulário web (o checkbox parte do ``AUDITOR_VULN_SCAN``)."""
+    return {"vuln_scan": get_settings().vuln_scan}
 
 
 @router.get("/fs/browse", response_model=BrowseResponse)
@@ -103,7 +112,7 @@ def create_audit(req: CreateAuditRequest) -> AuditSummary:
         "provider": provider,
         "model": model,
         "skip_questions": not req.interactive,
-        "vuln_scan": settings.vuln_scan if req.vuln_scan is None else req.vuln_scan,
+        "vuln_scan": resolve_vuln_scan(req.vuln_scan),
         "user_context": {},
         "findings": [],
         "dimension_summaries": [],
@@ -263,6 +272,8 @@ def get_findings(audit_id: str) -> dict:
         "verification": values.get("verification", {}),
         "adversarial": values.get("adversarial", {}),
         "dependency_scan": values.get("dependency_scan", {}),
+        # status já redigido (RPT-01) — o frontend mostra o mesmo texto do relatório
+        "dependency_scan_status": asdict(scan_status(values.get("dependency_scan"))),
     }
 
 

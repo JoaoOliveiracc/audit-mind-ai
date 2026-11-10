@@ -151,3 +151,72 @@ def test_e2e03_cli_end_to_end(e2e, monkeypatch):
              re.findall(r"^(Markdown|HTML|SARIF):\s+(\S+)$", result.output, re.M)}
     assert set(paths) == {"Markdown", "HTML", "SARIF"}
     assert all(p.is_file() and p.parent == reports for p in paths.values())
+
+
+# --- E2E-05: varredura de dependências (vuln-scan) com transporte HTTP falso ------------------
+def test_e2e05_vuln_scan_end_to_end(e2e, monkeypatch):
+    import socket
+
+    import httpx
+
+    from auditor.nodes import dependency_scan as scan_node
+    from auditor.vulnscan.sources.eol import EOL_BASE_URL, EndOfLifeClient
+    from auditor.vulnscan.sources.osv import OSV_BASE_URL, OSVClient
+
+    project, reports = e2e
+    lock = {"lockfileVersion": 3, "packages": {
+        "node_modules/lodash": {"version": "4.17.15",
+                                "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.15.tgz"},
+        "node_modules/@acme/billing": {"version": "3.0.0",
+                                       "resolved": "https://registry.npmjs.org/@acme/billing/-/b.tgz"}}}
+    (project / "package-lock.json").write_text(json.dumps(lock, indent=2), encoding="utf-8")
+    (project / ".npmrc").write_text("@acme:registry=https://npm.acme.internal/\n", encoding="utf-8")
+    (project / ".nvmrc").write_text("16\n", encoding="utf-8")
+
+    sent: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(f"{request.url.host}{request.url.path} {request.content.decode()}")
+        if request.url.path == "/v1/querybatch":
+            queries = json.loads(request.content)["queries"]
+            return httpx.Response(200, json={"results": [
+                {"vulns": [{"id": "GHSA-35jh-r3h4-6jhm"}]} if q["package"]["name"] == "lodash" else {}
+                for q in queries]})
+        if request.url.path.startswith("/v1/vulns/"):
+            return httpx.Response(200, json={
+                "id": "GHSA-35jh-r3h4-6jhm", "aliases": ["CVE-2021-23337"], "summary": "Command Injection",
+                "database_specific": {"severity": "HIGH"},
+                "affected": [{"package": {"ecosystem": "npm", "name": "lodash"}, "ranges": [
+                    {"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "4.17.21"}]}]}]})
+        return httpx.Response(200, json={"result": {"releases": [
+            {"name": "22", "isEol": False, "latest": {"name": "22.20.0"}},
+            {"name": "16", "isEol": True, "latest": {"name": "16.20.2"}}]}})
+
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(scan_node, "OSVClient",
+                        lambda: OSVClient(http=httpx.Client(base_url=OSV_BASE_URL, transport=transport)))
+    monkeypatch.setattr(scan_node, "EndOfLifeClient",
+                        lambda: EndOfLifeClient(http=httpx.Client(base_url=EOL_BASE_URL, transport=transport)))
+
+    def no_network(*a, **k):
+        raise AssertionError("conexão de rede real durante o e2e")
+
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+
+    graph = build_graph()
+    cfg = {"configurable": {"thread_id": "e2e-vulnscan-0001"}}
+    list(graph.stream({**_initial(project), "skip_questions": True, "vuln_scan": True}, cfg,
+                      stream_mode="updates"))
+    final = graph.get_state(cfg).values
+
+    osv = [f for f in final["findings"] if f.get("source") == "osv"]
+    runtime = [f for f in final["findings"] if f.get("source") == "endoflife"]
+    assert len(osv) == 1 and osv[0]["title"] == "lodash@4.17.15 com 1 vulnerabilidade(s) conhecida(s)"
+    assert osv[0]["verified"] is True and "judged" not in osv[0]          # verificado, não julgado
+    assert len(runtime) == 1 and runtime[0]["severity"] == "high" and "judged" not in runtime[0]
+    stats = final["dependency_scan"]
+    assert (stats["skipped_private"], stats["vulnerable"], stats["errors"]) == (1, 1, [])
+    assert not any("acme" in s for s in sent)                             # nome privado nunca sai
+    assert final["adversarial"]["judged"] == 1                            # só o achado do LLM
+    md = Path(final["report_markdown_path"]).read_text(encoding="utf-8")
+    assert "1 pacote(s) vulnerável(is) entre 1 dependências consultadas (1 privada(s) não consultada(s))" in md

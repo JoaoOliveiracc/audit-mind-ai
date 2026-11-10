@@ -10,6 +10,7 @@ import yaml
 
 from ..models import Dependency, ParseResult
 from . import register
+from ._lines import NextLine, first_index
 from .registry_config import RegistryConfig, is_public_npm_url, load_registry_config
 
 ECO = "npm"
@@ -32,11 +33,13 @@ def _private(cfg: RegistryConfig, name: str, resolved: str | None) -> bool:
     return cfg.is_private(name) or not resolved or not is_public_npm_url(resolved)
 
 
-def _first_line(lines: list[str], start: int, needle: str) -> int:
-    for i in range(start, len(lines)):
-        if needle in lines[i]:
-            return i + 1
-    return start + 1
+def _json_object_key(line: str) -> str | None:
+    """``    "node_modules/x": {`` → ``node_modules/x``."""
+    s = line.strip()
+    if s.startswith('"') and s.endswith("{"):
+        end = s.find('"', 1)
+        return s[1:end] if end > 0 else None
+    return None
 
 
 # --- package-lock.json -------------------------------------------------------------------
@@ -60,6 +63,7 @@ def parse_package_lock(path: Path, rel: str, root: Path) -> ParseResult:
 
     cfg = load_registry_config(root, path.parent)
     lines = text.splitlines()
+    key_line, version_line = first_index(lines, _json_object_key), NextLine(lines, '"version"')
     for key, meta in packages.items():
         if not key or not isinstance(meta, dict) or "node_modules/" not in key:
             continue
@@ -68,10 +72,9 @@ def parse_package_lock(path: Path, rel: str, root: Path) -> ParseResult:
         version = meta.get("version")
         if not version or meta.get("link"):
             continue  # workspace/link: não é pacote do registro
-        start = next((i for i, ln in enumerate(lines) if ln.strip().startswith(f'"{key}"')), 0)
         result.dependencies.append(Dependency(
             ecosystem=ECO, name=name, version=str(version), file=rel,
-            line=_first_line(lines, start, '"version"'),
+            line=version_line.after(key_line.get(key, 0)),
             dev=bool(meta.get("dev")), private=_private(cfg, name, meta.get("resolved")),
         ))
     return result
@@ -131,6 +134,8 @@ def _parse_yarn_berry(text: str, rel: str, cfg: RegistryConfig) -> ParseResult:
     if not isinstance(data, dict):
         raise ValueError("raiz não é um mapa")
     lines = text.splitlines()
+    key_line = first_index(lines, lambda ln: None if not ln or ln[0] in " #" else ln.rstrip().rstrip(":").strip('"'))
+    version_line = NextLine(lines, "version:")
     for key, meta in data.items():
         if key == "__metadata" or not isinstance(meta, dict):
             continue
@@ -141,11 +146,9 @@ def _parse_yarn_berry(text: str, rel: str, cfg: RegistryConfig) -> ParseResult:
             continue
         base_name, ref = parsed                     # "lodash@npm:4.17.15" → ("lodash", "npm:4.17.15")
         is_registry = ref.split(":", 1)[0] == "npm"   # workspace:/patch:/git:/file:/link: ⇒ privado
-        start = next((i for i, ln in enumerate(lines)
-                      if ln.startswith((f'"{key}', f"{key}:"))), 0)
         result.dependencies.append(Dependency(
             ecosystem=ECO, name=base_name, version=str(version), file=rel,
-            line=_first_line(lines, start, "version:"),
+            line=version_line.after(key_line.get(str(key), 0)),
             private=(not is_registry) or cfg.is_private(base_name)))
     return result
 
@@ -172,6 +175,7 @@ def parse_pnpm_lock(path: Path, rel: str, root: Path) -> ParseResult:
     except ValueError:
         legacy_v5 = False
     unrecognized: list[str] = []
+    key_line = first_index(lines, lambda ln: ln.strip().rstrip(":").strip("'\"") or None, pkg_start)
     for raw_key, meta in packages.items():
         key = str(raw_key).lstrip("/").split("(", 1)[0]
         if legacy_v5 and "/" in key:      # v5: "/lodash/4.17.21", "/@types/node/18.0.0"
@@ -187,8 +191,7 @@ def parse_pnpm_lock(path: Path, rel: str, root: Path) -> ParseResult:
         resolution = meta.get("resolution") or {}
         from_registry = isinstance(resolution, dict) and "integrity" in resolution \
             and "tarball" not in resolution and "type" not in resolution
-        line = next((i + 1 for i in range(pkg_start, len(lines))
-                     if lines[i].strip().rstrip(":").strip("'\"") == str(raw_key)), pkg_start + 1)
+        line = key_line.get(str(raw_key), pkg_start) + 1
         result.dependencies.append(Dependency(
             ecosystem=ECO, name=name, version=version, file=rel, line=line,
             dev=meta.get("dev") is True, private=(not from_registry) or cfg.is_private(name)))

@@ -36,7 +36,7 @@ def scan_status(stats: Mapping[str, Any] | None) -> ScanStatus:
                    for f in stats.get("skipped_files") or [])
     reasons.extend(str(e) for e in stats.get("errors") or [])
     if reasons:
-        return ScanStatus(INCOMPLETE, True, reasons)
+        return ScanStatus(INCOMPLETE + suffix, True, reasons)
     if vulnerable:
         return ScanStatus(f"{vulnerable} pacote(s) vulnerável(is) entre {queried} dependências "
                           f"consultadas{suffix}")

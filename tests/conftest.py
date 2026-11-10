@@ -41,3 +41,19 @@ def _isolated_data_dir(tmp_path_factory, monkeypatch):
     yield
     for cached in caches:
         cached.cache_clear()
+
+
+_REGISTRY_ENV = ("NPM_CONFIG_REGISTRY", "npm_config_registry", "YARN_NPM_REGISTRY_SERVER", "PIP_INDEX_URL",
+                 "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS", "PIP_CONFIG_FILE", "UV_INDEX_URL",
+                 "UV_EXTRA_INDEX_URL", "UV_INDEX", "UV_DEFAULT_INDEX", "UV_FIND_LINKS")
+
+
+@pytest.fixture(autouse=True)
+def _no_host_registry_config(monkeypatch):
+    """vuln-scan: registros npm/pip da máquina de quem roda os testes não influenciam (G48)."""
+    for var in _REGISTRY_ENV:
+        monkeypatch.delenv(var, raising=False)
+    for var in [k for k in os.environ if k.lower().startswith("npm_config_@")]:
+        monkeypatch.delenv(var, raising=False)
+    from auditor.vulnscan.lockfiles import python as py_lockfiles
+    monkeypatch.setattr(py_lockfiles, "_SYSTEM_PIP_CONFIGS", ())
