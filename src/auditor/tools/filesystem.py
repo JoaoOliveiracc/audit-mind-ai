@@ -82,6 +82,10 @@ def make_project_tools(root: Path, settings: Settings) -> list[StructuredTool]:
             glob: Padrão glob de arquivos (ex.: '**/*.py'). Padrão: todos.
             is_regex: Se True, trata ``pattern`` como regex.
         """
+        # O glob vem do LLM (e, por prompt injection, do código auditado): nada de
+        # padrões absolutos ou com componente '..' — a busca fica confinada à raiz.
+        if Path(glob).is_absolute() or ".." in re.split(r"[\\/]", glob):
+            return "ERRO: glob deve ser relativo à raiz do projeto e sem '..'."
         try:
             matcher = re.compile(pattern if is_regex else re.escape(pattern), re.IGNORECASE)
         except re.error as exc:
@@ -90,7 +94,12 @@ def make_project_tools(root: Path, settings: Settings) -> list[StructuredTool]:
         for path in root.glob(glob):
             if not path.is_file():
                 continue
-            if any(part in settings.ignore_dirs for part in path.parts):
+            try:  # symlink cujo alvo real está fora da raiz: não lê
+                _safe_resolve(root, path.relative_to(root).as_posix())
+            except ValueError:
+                continue
+            # Só o caminho relativo conta: ancestrais da raiz (ex.: ~/build/proj) não.
+            if any(part in settings.ignore_dirs for part in path.relative_to(root).parts):
                 continue
             if path.suffix.lower() in settings.binary_extensions:
                 continue

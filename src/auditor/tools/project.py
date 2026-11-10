@@ -80,7 +80,7 @@ def detect_stack(root: Path, settings: Settings) -> StackProfile:
         name = path.name
         ext = path.suffix.lower()
 
-        if any(part.lower() in TEST_HINTS for part in path.parts):
+        if any(part.lower() in TEST_HINTS for part in path.relative_to(root).parts):
             has_tests = True
 
         if name in MARKER_SIGNALS:
