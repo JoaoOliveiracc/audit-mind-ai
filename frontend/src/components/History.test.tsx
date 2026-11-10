@@ -12,11 +12,12 @@ const audit: AuditSummary = {
   health_score: 80,
 }
 
-function setup() {
+function setup(audits: AuditSummary[] = [audit]) {
   const onOpen = vi.fn()
   const onDelete = vi.fn()
-  render(<History audits={[audit]} onOpen={onOpen} onDelete={onDelete} />)
-  return { onOpen, onDelete }
+  const onResume = vi.fn()
+  render(<History audits={audits} onOpen={onOpen} onDelete={onDelete} onResume={onResume} />)
+  return { onOpen, onDelete, onResume }
 }
 
 describe('History — exclusão', () => {
@@ -61,4 +62,41 @@ describe('History — exclusão', () => {
 
     expect(onOpen).toHaveBeenCalledWith(audit)
   })
+})
+
+// Spec: .specs/features/api-hardening/spec.md — UI-01, UI-02
+describe('History — retomada', () => {
+  const interrupted: AuditSummary = {
+    ...audit, id: 'i1', status: 'interrupted', project_path: '/proj/beta', health_score: null,
+  }
+
+  it('UI-01: interrompida mostra o rótulo e o botão Retomar; outros status não', () => {
+    setup([audit, interrupted])
+
+    expect(screen.getByText('interrompida')).toBeInTheDocument()
+    const buttons = screen.getAllByRole('button', { name: /^Retomar auditoria de / })
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).toHaveAccessibleName('Retomar auditoria de /proj/beta')
+  })
+
+  it('UI-02: Retomar chama onResume com a auditoria e não abre', () => {
+    const { onOpen, onResume, onDelete } = setup([interrupted])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retomar auditoria de /proj/beta' }))
+
+    expect(onResume).toHaveBeenCalledTimes(1)
+    expect(onResume).toHaveBeenCalledWith(interrupted)
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+})
+
+describe('History — Retomar só para interrompidas (UI-01)', () => {
+  it.each(['started', 'running', 'waiting_input', 'completed', 'error'])(
+    'status %s não mostra Retomar',
+    (status) => {
+      setup([{ ...audit, status }])
+      expect(screen.queryByRole('button', { name: /^Retomar auditoria de / })).not.toBeInTheDocument()
+    },
+  )
 })

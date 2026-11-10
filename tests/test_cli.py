@@ -68,3 +68,37 @@ def test_db_compact_locked_db_exits_1_and_asks_to_stop_api(tmp_path):
 
     assert result.exit_code == 1
     assert "pare a API" in result.output
+
+
+# --- BIND-01..03: `auditor serve` só faz bind local sem opt-in explícito ------------
+import pytest  # noqa: E402
+
+
+@pytest.fixture
+def started(monkeypatch):
+    calls = []
+    monkeypatch.setattr("uvicorn.run", lambda *a, **k: calls.append(k))
+    return calls
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
+def test_serve_local_host_starts(started, host):
+    result = runner.invoke(app, ["serve", "--host", host])
+    assert result.exit_code == 0, result.output
+    assert len(started) == 1 and started[0]["host"] == host
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.0.10", "::"])
+def test_serve_non_local_without_flag_exits_2_and_does_not_start(started, host):
+    result = runner.invoke(app, ["serve", "--host", host])
+    assert result.exit_code == 2
+    assert "--allow-remote" in result.output
+    assert started == []
+
+
+def test_serve_non_local_with_flag_warns_and_starts(started):
+    result = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--allow-remote"])
+    assert result.exit_code == 0, result.output
+    assert "sem autenticação" in result.output
+    assert "AUDITOR_ALLOWED_HOSTS" in result.output
+    assert len(started) == 1 and started[0]["host"] == "0.0.0.0"

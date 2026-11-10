@@ -40,11 +40,14 @@ def _counts(findings: list[dict]) -> dict[str, int]:
 class AuditRunner:
     """Roda uma auditoria e publica eventos consumíveis via SSE."""
 
-    def __init__(self, audit_id: str, graph, store: AuditStore, initial: dict) -> None:
+    def __init__(self, audit_id: str, graph, store: AuditStore, initial: Optional[dict],
+                 resume: bool = False) -> None:
+        """``resume=True`` retoma do último checkpoint (``initial`` é ignorado)."""
         self.id = audit_id
         self._graph = graph
         self._store = store
         self._initial = initial
+        self._resume = resume
         self._config = {"configurable": {"thread_id": audit_id}}
         self.log: list[dict] = []
         self.done = threading.Event()
@@ -88,10 +91,21 @@ class AuditRunner:
                                      "label": NODE_LABELS.get(node, node), "status": "done"})
         return "done"
 
+    def _drive_resume(self) -> str:
+        """Retoma pelo checkpoint: interrupt pendente → reapresenta as perguntas;
+        senão continua os nós pendentes (``stream(None)``; no-op se nada pendente)."""
+        state = self._graph.get_state(self._config)
+        for task in state.tasks:
+            if task.interrupts:
+                value = getattr(task.interrupts[0], "value", {}) or {}
+                self._emit("clarification", {"questions": value.get("questions", [])})
+                return "interrupted"
+        return self._drive(None)
+
     def _run(self) -> None:
-        logger.info("Auditoria %s iniciada", self.id)
+        logger.info("Auditoria %s %s", self.id, "retomada" if self._resume else "iniciada")
         try:
-            result = self._drive(self._initial)
+            result = self._drive_resume() if self._resume else self._drive(self._initial)
             while result == "interrupted":
                 self._store.update(self.id, status="waiting_input")
                 self._resume_ready.wait()

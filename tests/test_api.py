@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from auditor.api.main import app
 from auditor.api.runner import _counts
 
-client = TestClient(app)
+client = TestClient(app, base_url="http://localhost")  # Host permitido (AD-002)
 
 
 def test_health():
@@ -173,3 +173,139 @@ def test_delete_io_failure_returns_500_and_keeps_audit(tmp_deps, monkeypatch):
     r = client.delete("/audits/d1")
     assert r.status_code == 500
     assert store.get("d1") is not None
+
+
+# --- POST /audits/{id}/resume (api-hardening: RES-04..07) ------------------------- #
+from auditor.llm import LLMConfigError  # noqa: E402
+
+
+@pytest.fixture
+def resume_env(tmp_path, monkeypatch):
+    store = AuditStore(tmp_path / "meta.sqlite")
+    monkeypatch.setattr(routes, "get_store", lambda: store)
+    monkeypatch.setattr(routes, "get_graph", lambda: "GRAPH")
+    llm_calls = []
+    monkeypatch.setattr(routes, "get_llm", lambda p, m: llm_calls.append((p, m)))
+    started = []
+
+    class _FakeRunner:
+        def __init__(self, audit_id, graph, st, initial, resume=False):
+            self.args = (audit_id, graph, initial, resume)
+            self.done = threading.Event()
+
+        def start(self):
+            started.append(self)
+
+    monkeypatch.setattr(routes, "AuditRunner", _FakeRunner)
+    for aid, status in (("int", "interrupted"), ("done", "completed"), ("err", "error")):
+        store.create(aid, "/proj", None, "anthropic", "claude-x")
+        store.update(aid, status=status)
+    yield store, started, llm_calls
+    for aid in ("int", "done", "err"):
+        routes.registry.pop(aid, None)
+
+
+def test_resume_interrupted_returns_200_running_and_registers_runner(resume_env):
+    store, started, llm_calls = resume_env
+    r = client.post("/audits/int/resume")
+    assert r.status_code == 200
+    assert r.json()["status"] == "running"
+    assert store.get("int")["status"] == "running"
+    assert len(started) == 1 and started[0].args == ("int", "GRAPH", None, True)
+    assert routes.registry["int"] is started[0]
+    assert llm_calls == [("anthropic", "claude-x")]
+
+
+def test_resume_unknown_returns_404(resume_env):
+    r = client.post("/audits/nope/resume")
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Auditoria não encontrada."
+
+
+@pytest.mark.parametrize("aid", ["done", "err"])
+def test_resume_non_interrupted_returns_409(resume_env, aid):
+    store, started, _ = resume_env
+    assert client.post(f"/audits/{aid}/resume").status_code == 409
+    assert started == []
+
+
+def test_resume_with_live_runner_returns_409(resume_env, monkeypatch):
+    store, started, _ = resume_env
+
+    class _Live:
+        done = threading.Event()
+
+    monkeypatch.setitem(routes.registry, "int", _Live())
+    assert client.post("/audits/int/resume").status_code == 409
+    assert started == []
+
+
+def test_resume_with_bad_llm_config_returns_400_and_keeps_status(resume_env, monkeypatch):
+    store, started, _ = resume_env
+
+    def bad(p, m):
+        raise LLMConfigError("credencial ausente")
+
+    monkeypatch.setattr(routes, "get_llm", bad)
+    r = client.post("/audits/int/resume")
+    assert r.status_code == 400
+    assert "credencial ausente" in r.json()["detail"]
+    assert store.get("int")["status"] == "interrupted"
+    assert started == []
+
+
+def _blocking_llm(monkeypatch):
+    """get_llm que bloqueia a 1ª chamada até ``release`` — abre a janela da corrida."""
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+
+    def slow(p, m):
+        calls.append(p)
+        if len(calls) == 1:
+            entered.set()
+            release.wait(5)
+
+    monkeypatch.setattr(routes, "get_llm", slow)
+    return entered, release
+
+
+def _post_in_thread(path, out):
+    t = threading.Thread(target=lambda: out.append(client.post(path)))
+    t.start()
+    return t
+
+
+def test_concurrent_double_resume_starts_only_one_runner(resume_env, monkeypatch):
+    store, started, _ = resume_env
+    entered, release = _blocking_llm(monkeypatch)
+    out = []
+    t = _post_in_thread("/audits/int/resume", out)
+    assert entered.wait(5)                      # 1ª requisição parada na validação
+
+    second = client.post("/audits/int/resume")  # 2ª completa enquanto a 1ª espera
+    release.set()
+    t.join(5)
+
+    assert second.status_code == 200
+    assert out[0].status_code == 409
+    assert len(started) == 1
+
+
+def test_delete_during_resume_validation_does_not_500(resume_env, monkeypatch, tmp_path):
+    store, started, _ = resume_env
+    saver = SqliteSaver(sqlite3.connect(str(tmp_path / "cp2.sqlite"), check_same_thread=False))
+    saver.setup()
+    monkeypatch.setattr(routes, "get_checkpointer", lambda: saver)
+    entered, release = _blocking_llm(monkeypatch)
+    out = []
+    t = _post_in_thread("/audits/int/resume", out)
+    assert entered.wait(5)
+
+    deleted = client.delete("/audits/int")
+    release.set()
+    t.join(5)
+
+    assert deleted.status_code == 204
+    assert out[0].status_code == 404
+    assert started == []
+    assert store.get("int") is None

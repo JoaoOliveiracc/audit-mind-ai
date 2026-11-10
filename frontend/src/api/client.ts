@@ -55,6 +55,11 @@ export async function submitAnswers(
   )
 }
 
+/** Retoma uma auditoria `interrupted` do último checkpoint (404/409/400 viram Error). */
+export async function resumeAudit(auditId: string): Promise<AuditSummary> {
+  return jsonOrThrow(await fetch(`/audits/${auditId}/resume`, { method: 'POST' }))
+}
+
 /** Exclui a auditoria (204). Erros (404/409/500) viram Error com o `detail` da API. */
 export async function deleteAudit(auditId: string): Promise<void> {
   const res = await fetch(`/audits/${auditId}`, { method: 'DELETE' })

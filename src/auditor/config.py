@@ -108,6 +108,10 @@ class Settings(BaseSettings):
     # Nº de vereditos por achado (1..3, com lentes distintas; maioria decide)
     adversarial_votes: int = Field(default=1, alias="AUDITOR_ADVERSARIAL_VOTES")
 
+    # API local: hosts extras aceitos no header Host, além de localhost/127.0.0.1/[::1]
+    # (separados por vírgula). Só para exposição deliberada (ver `serve --allow-remote`).
+    allowed_hosts: str = Field(default="", alias="AUDITOR_ALLOWED_HOSTS")
+
     # Diretórios ignorados na varredura
     ignore_dirs: tuple[str, ...] = (
         ".git", ".hg", ".svn", "node_modules", "venv", ".venv", "env",

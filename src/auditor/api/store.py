@@ -87,6 +87,16 @@ class AuditStore:
             )
             self._conn.commit()
 
+    def mark_orphans_interrupted(self) -> int:
+        """Marca como ``interrupted`` auditorias não-terminais (sem runner após restart)."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE audits SET status = 'interrupted' "
+                "WHERE status IN ('started', 'running', 'waiting_input')"
+            )
+            self._conn.commit()
+            return cur.rowcount
+
     def delete(self, audit_id: str) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM audits WHERE id = ?", (audit_id,))

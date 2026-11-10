@@ -224,13 +224,33 @@ def providers():
     )
 
 
+_LOCAL_BIND_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
 @app.command()
 def serve(
     host: str = typer.Option("127.0.0.1", help="Host da API (padrão: apenas local)."),
     port: int = typer.Option(8020, help="Porta da API."),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload (desenvolvimento)."),
+    allow_remote: bool = typer.Option(
+        False, "--allow-remote",
+        help="Permite bind em interface não-local (a API NÃO tem autenticação).",
+    ),
 ):
     """Sobe a API FastAPI (para o frontend web)."""
+    # AD-002: a API lê o filesystem do host e não tem autenticação — exposição
+    # fora do loopback só com opt-in explícito.
+    if host not in _LOCAL_BIND_HOSTS:
+        if not allow_remote:
+            console.print(
+                f"[red]Recusado:[/red] '{host}' não é uma interface local e a API não tem "
+                "autenticação. Use --allow-remote se a exposição for intencional."
+            )
+            raise typer.Exit(code=2)
+        console.print(
+            f"[bold yellow]Aviso:[/bold yellow] API exposta em '{host}' sem autenticação. "
+            "Clientes remotos só são aceitos se o host deles estiver em AUDITOR_ALLOWED_HOSTS."
+        )
     try:
         import uvicorn
     except ImportError:

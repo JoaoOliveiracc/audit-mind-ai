@@ -6,6 +6,7 @@ const STATUS_LABEL: Record<string, string> = {
   started: 'iniciada',
   running: 'em execução',
   waiting_input: 'aguardando resposta',
+  interrupted: 'interrompida',
   completed: 'concluída',
   error: 'erro',
 }
@@ -22,10 +23,12 @@ interface Props {
   onOpen: (a: AuditSummary) => void
   /** Exclusão (metadados + checkpoints + relatórios) — chamada só após confirmação inline. */
   onDelete: (a: AuditSummary) => void
+  /** Retomada de auditoria `interrupted` (órfã após restart da API). */
+  onResume: (a: AuditSummary) => void
 }
 
 /** Histórico de auditorias locais — clique reabre os achados (ou o stream, se em curso). */
-export default function History({ audits, onOpen, onDelete }: Props) {
+export default function History({ audits, onOpen, onDelete, onResume }: Props) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   if (audits.length === 0) return null
   return (
@@ -52,6 +55,17 @@ export default function History({ audits, onOpen, onDelete }: Props) {
                 )}
               </span>
             </button>
+            {a.status === 'interrupted' && (
+              <button
+                type="button"
+                className="btn shrink-0 !px-2 !text-xs"
+                aria-label={`Retomar auditoria de ${a.project_path}`}
+                title="Retomar do último checkpoint"
+                onClick={() => onResume(a)}
+              >
+                Retomar
+              </button>
+            )}
             {confirmingId === a.id ? (
               <span className="flex shrink-0 items-center gap-1">
                 <button

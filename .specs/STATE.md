@@ -10,13 +10,21 @@
 - **Date**: 2026-11-10
 - **Status**: active
 
+### AD-002
+- **Decision**: The local API answers only loopback `Host` headers (`localhost`, `127.0.0.1`, `[::1]`); any non-local exposure is explicit opt-in (`auditor serve --allow-remote` + `AUDITOR_ALLOWED_HOSTS`).
+- **Reason**: The API has no authentication and can read the host filesystem; DNS rebinding bypasses CORS.
+- **Trade-off**: Remote/LAN use needs two explicit settings.
+- **Scope**: `src/auditor/api/*`, `auditor serve`.
+- **Date**: 2026-11-10
+- **Status**: active
+
 ## Handoff
 
-- **Feature**: `.specs/features/audit-retention/` (previous: `search-code-scoping`, verified)
-- **Phase / Task**: Execute done (T1–T8); fix loop 1 (race in delete_audit + CMP-02 tightened) under re-verification
-- **Completed**: T1–T8, fix loop 1 implemented
+- **Feature**: `.specs/features/api-hardening/` — verified PASS after fix loop 1 (previous: `search-code-scoping`, `audit-retention`, both verified)
+- **Phase / Task**: all three features complete
+- **Completed**: search-code-scoping (G25/G26/G30), audit-retention (G28/G29), api-hardening (G27/G31)
 - **In-progress**: none
-- **Next step**: user commits both features; next backlog item per DOCUMENTACAO.md §10.3 (G31+G27)
+- **Next step**: user commits; next backlog per DOCUMENTACAO.md §10.3 — (4) G32+G33, then G44 (create_agent migration), G37/G38 (CI, mypy)
 - **Blockers**: none
-- **Uncommitted files**: both features (code, tests, docs, .specs/) — user runs git
+- **Uncommitted files**: all three features (code, tests, docs, .specs/) — user runs git
 - **Branch**: develop

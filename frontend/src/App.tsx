@@ -7,6 +7,7 @@ import {
   getFindings,
   getProviders,
   listAudits,
+  resumeAudit,
   submitAnswers,
 } from './api/client'
 import { connectAuditStream, type AuditStream } from './api/sse'
@@ -116,6 +117,22 @@ export default function App() {
     refreshHistory()
   }
 
+  /** Retoma uma auditoria interrompida e conecta ao stream ao vivo. */
+  const handleResumeAudit = async (summary: AuditSummary) => {
+    streamRef.current?.close()
+    setStartError(null)
+    try {
+      const a = await resumeAudit(summary.id)
+      setAuditId(a.id)
+      setProjectPath(a.project_path)
+      dispatch({ type: 'START' })
+      openStream(a.id)
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : String(err))
+      refreshHistory()
+    }
+  }
+
   /** Reabre uma auditoria do histórico: completa → carrega achados; em curso → reconecta o stream. */
   const handleOpenAudit = async (summary: AuditSummary) => {
     streamRef.current?.close()
@@ -175,7 +192,9 @@ export default function App() {
                 {startError}
               </p>
             )}
-            <History audits={history} onOpen={handleOpenAudit} onDelete={handleDeleteAudit} />
+            <History audits={history} onOpen={handleOpenAudit} onDelete={handleDeleteAudit}
+              onResume={handleResumeAudit}
+            />
           </>
         )}
 
