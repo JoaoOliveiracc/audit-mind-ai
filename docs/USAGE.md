@@ -126,9 +126,9 @@ credentials (AWS/gcloud).
 
 ```
 audit-reports/
-├── auditoria-20260701-143022.md      # versionable, for the repository
-├── auditoria-20260701-143022.html    # self-contained, to share
-└── auditoria-20260701-143022.sarif   # SARIF 2.1.0 (GitHub Code Scanning / CI)
+├── auditoria-20260701-143022-3f9a1c2e.md      # versionable, for the repository
+├── auditoria-20260701-143022-3f9a1c2e.html    # self-contained, to share
+└── auditoria-20260701-143022-3f9a1c2e.sarif   # SARIF 2.1.0 (GitHub Code Scanning / CI)
 ```
 
 ## 4. Interpreting the report

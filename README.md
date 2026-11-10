@@ -49,7 +49,8 @@ auditor audit /path/to/project --goal "Preparing for production, security focus"
 
 The agent will ask a few questions in the terminal, run the audit and write the
 reports to `./audit-reports/` (configurable via `AUDITOR_OUTPUT_DIR`) — as
-`auditoria-<timestamp>.{md,html,sarif}`.
+`auditoria-<timestamp>-<id8>.{md,html,sarif}` (`id8` = first 8 chars of the audit id — the `id`
+returned by the API; reports never overwrite each other).
 
 ### Non-interactive mode (CI/pipeline)
 

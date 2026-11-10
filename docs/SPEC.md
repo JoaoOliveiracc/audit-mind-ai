@@ -86,7 +86,7 @@ The agent dynamically selects the dimensions applicable to the project:
 **Input:** path of a project directory + optional objective + clarification responses.
 
 **Output:**
-- `audit-reports/auditoria-<timestamp>.md`
-- `audit-reports/auditoria-<timestamp>.html`
-- `audit-reports/auditoria-<timestamp>.sarif`
+- `audit-reports/auditoria-<timestamp>-<id8>.md`
+- `audit-reports/auditoria-<timestamp>-<id8>.html`
+- `audit-reports/auditoria-<timestamp>-<id8>.sarif`
 - Terminal summary (score + finding distribution + paths).
