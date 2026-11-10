@@ -129,7 +129,8 @@ Each dimension is audited in two decoupled phases:
 - `verify` (no LLM): the cited file must exist inside the root and the `evidence` snippet must
   appear in it (tolerant matching). Unsubstantiated findings are **dropped**; findings without
   file/evidence are kept with `confidence ≤ 0.5`.
-- `adversarial` (optional): for findings with a file and severity ≥ threshold, a skeptical judge
+- `adversarial` (optional, parallel up to `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`; aggregation in input
+  order): for findings with a file and severity ≥ threshold, a skeptical judge
   reads the real code window and tries to refute them (1–3 lenses, majority vote). Refuted →
   dropped; uncertain → confidence lowered.
 
@@ -141,6 +142,9 @@ additionally rejects absolute globs or globs with a `..` component and skips fil
 path (symlink target) is outside the root. Binary files and files above `AUDITOR_MAX_FILE_BYTES`
 are skipped; build/dependency directories (`node_modules`, `.git`, `venv`, …) are ignored,
 matched against the path **relative** to the root (regression tests: `tests/test_tools_scoping.py`).
+`search_code` walks with `os.walk(followlinks=False)`, pruning ignored dirs before listing them (and,
+for globs without `**`, anything deeper than the pattern), and matches globs per segment — on a tree
+with 20 000 files in `node_modules`, `**/*` went from ~2.4 s to ~7 ms per call (G34).
 
 ## 8. Health score
 

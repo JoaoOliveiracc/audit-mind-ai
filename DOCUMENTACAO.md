@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G33, G36–G38 e G44–G46 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G38 e G44–G46 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -169,7 +169,7 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 | `AUDITOR_MAX_FILES` | `5000` | Máx. de arquivos no inventário. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Máx. de resultados por busca. |
 | `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` de cada investigador ReAct (≈ 2 passos por tool call → 80 ≈ 40 tool calls). Perto do fim o agente é avisado para concluir; se estourar, um relatório de resgate é gerado e a dimensão sai marcada como **parcial**. |
-| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigadores de dimensão em paralelo (1 = sequencial). |
+| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigadores de dimensão em paralelo (1 = sequencial); também limita o juiz adversarial. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Diretório dos relatórios. |
 | `AUDITOR_VERIFY_EVIDENCE` | `true` | Verificação determinística de evidência (§9). |
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Juiz adversarial (custa tokens; §9). |
@@ -307,7 +307,10 @@ Vinculadas à raiz do projeto via `make_project_tools(root, settings)`; todo cam
 
 `search_code` rejeita `glob` absoluto ou com componente `..` (retorna `ERRO: …`), valida cada
 arquivo com `_safe_resolve` (symlinks para fora da raiz são ignorados) e aplica `ignore_dirs` ao
-caminho **relativo** à raiz (G25/G26/G30 — testes em `tests/test_tools_scoping.py`).
+caminho **relativo** à raiz (G25/G26/G30 — testes em `tests/test_tools_scoping.py`). A varredura usa
+`os.walk` podando `ignore_dirs` antes de listar, não segue diretórios-link e casa o glob por segmento
+(`**` = qualquer profundidade); resultados em ordem de caminho (G34). Só **diretórios** são ignorados:
+um arquivo chamado `build`/`env`/`bin`/`out` é pesquisado normalmente.
 
 ### Descoberta (`auditor/tools/project.py`)
 
@@ -464,8 +467,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G31~~ ✅ | Auditorias "zumbis": após reiniciar a API, registros em `running`/`waiting_input` ficam assim para sempre (o `registry` é em memória); o histórico tenta reconectar o SSE e recebe 404. | 🟡 Médio | Reproduzido — banco local tem 1 `running` + 2 `waiting_input` órfãos. | ✅ **Resolvido** — órfãs viram `interrupted` na subida; `POST /audits/{id}/resume` + botão **Retomar** retomam do checkpoint. |
 | ~~G32~~ ✅ | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | ✅ **Resolvido** (reproduzido antes) — aviso de conclusão nas 2 últimas chamadas do modelo (middleware — ver G44) e, se ainda estourar, 1 chamada de resgate sem tools sobre o histórico condensado; a dimensão sai marcada como parcial (prefixo no resumo, SSE `partial`, aviso na CLI). Spec: `.specs/features/investigator-budget/`. |
 | ~~G33~~ ✅ | `synthesis_node` usa `str(response.content)` quando o provider devolve blocos (Anthropic/Gemini) → o resumo executivo sai como `repr` de lista. | 🟢 Baixo | Análise — `nodes/synthesis.py:46` (o `audit._final_report` já trata isso). | ✅ **Resolvido** — helper comum `nodes/_messages.content_text` usado por `audit` e `synthesis`. |
-| G34 | `search_code` percorre `root.glob("**/*")` inteiro (incluindo `node_modules`, `.venv`) e só filtra depois → lento em repositórios grandes. | 🟢 Baixo | Análise. | `os.walk` com poda de `ignore_dirs` (como `_iter_files`). |
-| G35 | O juiz adversarial é sequencial (achados × votos chamadas em série), ao contrário dos investigadores. | 🟢 Baixo | Análise — `nodes/adversarial.py:126`. | Thread pool com o mesmo limite de concorrência. |
+| ~~G34~~ ✅ | `search_code` percorre `root.glob("**/*")` inteiro (incluindo `node_modules`, `.venv`) e só filtra depois → lento em repositórios grandes. | 🟢 Baixo | Análise. | ✅ **Resolvido** — `os.walk` com poda de `ignore_dirs` (e de profundidade sem `**`), sem seguir pastas-link, glob por segmento; `**/*` com 20 mil arquivos em `node_modules`: ~2,4 s → ~7 ms. `src/**` passa a achar arquivos. Spec: `.specs/features/search-and-judge-perf/`. |
+| ~~G35~~ ✅ | O juiz adversarial é sequencial (achados × votos chamadas em série), ao contrário dos investigadores. | 🟢 Baixo | Análise — `nodes/adversarial.py:126`. | ✅ **Resolvido** — juiz em thread pool (limite `AUDITOR_MAX_CONCURRENT_INVESTIGATORS`), agregação na ordem de entrada (resultado idêntico ao sequencial). |
 
 #### Engenharia e qualidade
 
@@ -507,8 +510,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G33, G36–G38 e G44–G46 concluídos)
-G25–G33, G36–G38 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G38 e G44–G46 concluídos)
+G25–G38 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

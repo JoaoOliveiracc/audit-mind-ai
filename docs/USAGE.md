@@ -67,7 +67,7 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_FILES` | `5000` | Max. files in the inventory. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Max. results per search. |
 | `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` per investigator (graph steps ≈ 2× tool calls). Near the end the agent is told to conclude; if it still runs out, a salvage report is written and the dimension is marked **partial**. |
-| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
+| `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators (and adversarial-judge calls) running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
 | `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
 | `AUDITOR_ALLOWED_HOSTS` | — | Extra `Host` values the API accepts besides `localhost`/`127.0.0.1`/`[::1]` (comma-separated). Only for deliberate exposure with `serve --allow-remote`. |
