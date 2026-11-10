@@ -158,6 +158,7 @@ CORS setup needed; see `frontend/vite.config.ts`). Production build: `vite build
 make ci                      # everything CI runs: ruff, mypy, pytest, npm ci, vitest, tsc, vite build
 pytest -q                    # backend tests only (offline, no LLM; needs .[dev,api])
 make typecheck               # mypy src (must report 0 errors)
+make coverage                # pytest with coverage report (currently ~91%; no threshold yet)
 cd frontend && npm test      # frontend tests only (Vitest)
 ```
 
