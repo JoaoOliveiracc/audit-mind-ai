@@ -109,3 +109,67 @@ def test_runner_streaming_and_human_in_the_loop():
     events = [e["event"] for e in runner.log]
     assert "completed" in events
     assert events[-1] == "__end__"
+
+
+# --- DELETE /audits/{id} (audit-retention: RET-01..04, RET-07) ----------------- #
+import sqlite3  # noqa: E402
+import threading  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import pytest  # noqa: E402
+from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: E402
+
+from auditor.api import routes  # noqa: E402
+from auditor.api.store import AuditStore  # noqa: E402
+
+
+@pytest.fixture
+def tmp_deps(tmp_path, monkeypatch):
+    """Store/checkpointer temporários injetados na rota (não toca ~/.config/auditor)."""
+    store = AuditStore(tmp_path / "meta.sqlite")
+    saver = SqliteSaver(sqlite3.connect(str(tmp_path / "cp.sqlite"), check_same_thread=False))
+    saver.setup()
+    monkeypatch.setattr(routes, "get_store", lambda: store)
+    monkeypatch.setattr(routes, "get_checkpointer", lambda: saver)
+    report = tmp_path / "auditoria-x.md"
+    report.write_text("r", encoding="utf-8")
+    store.create("d1", "/proj", None, "p", "m")
+    store.update("d1", status="completed", report_md=str(report))
+    return store, report
+
+
+def test_delete_audit_returns_204_and_audit_is_gone(tmp_deps):
+    store, report = tmp_deps
+    r = client.delete("/audits/d1")
+    assert r.status_code == 204
+    assert client.get("/audits/d1").status_code == 404
+    assert "d1" not in [a["id"] for a in client.get("/audits").json()]
+    assert not report.exists()
+
+
+def test_delete_unknown_audit_returns_404(tmp_deps):
+    assert client.delete("/audits/nao-existe").status_code == 404
+
+
+def test_delete_live_audit_returns_409(tmp_deps, monkeypatch):
+    store, report = tmp_deps
+
+    class _Live:
+        done = threading.Event()
+
+    monkeypatch.setitem(routes.registry, "d1", _Live())
+    r = client.delete("/audits/d1")
+    assert r.status_code == 409
+    assert store.get("d1") is not None and report.exists()
+
+
+def test_delete_io_failure_returns_500_and_keeps_audit(tmp_deps, monkeypatch):
+    store, _ = tmp_deps
+
+    def boom(self, *a, **k):
+        raise PermissionError("negado")
+
+    monkeypatch.setattr(Path, "unlink", boom)
+    r = client.delete("/audits/d1")
+    assert r.status_code == 500
+    assert store.get("d1") is not None

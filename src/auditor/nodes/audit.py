@@ -72,7 +72,9 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False),
     )
-    agent = create_react_agent(llm, tools=tools, prompt=prompt)
+    # checkpointer=False (AD-001): o sub-agente nunca herda o checkpointer do grafo
+    # pai — senão cada passo ReAct (com trechos de código) é persistido.
+    agent = create_react_agent(llm, tools=tools, prompt=prompt, checkpointer=False)
     result = agent.invoke(
         {"messages": [("user", f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
         config={"recursion_limit": settings.max_investigator_steps},

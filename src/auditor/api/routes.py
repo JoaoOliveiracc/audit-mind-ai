@@ -13,7 +13,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
 from ..llm import LLMConfigError, get_llm
-from .deps import get_graph, get_store, registry
+from .deps import get_checkpointer, get_graph, get_store, registry
+from .retention import AuditBusyError, AuditNotFoundError, delete_audit
 from .runner import AuditRunner
 from .schemas import (
     AnswersRequest,
@@ -122,6 +123,20 @@ def get_audit(audit_id: str) -> AuditSummary:
     if not record:
         raise HTTPException(404, "Auditoria não encontrada.")
     return _summary(record)
+
+
+@router.delete("/audits/{audit_id}", status_code=204)
+def remove_audit(audit_id: str) -> Response:
+    """Exclui a auditoria: metadados, checkpoints e relatórios (.md/.html/.sarif)."""
+    try:
+        delete_audit(audit_id, get_store(), get_checkpointer(), registry)
+    except AuditNotFoundError:
+        raise HTTPException(404, "Auditoria não encontrada.")
+    except AuditBusyError:
+        raise HTTPException(409, "Auditoria em execução; aguarde a conclusão para excluir.")
+    except OSError as exc:
+        raise HTTPException(500, f"Falha ao apagar arquivos da auditoria: {exc}") from exc
+    return Response(status_code=204)
 
 
 @router.get("/audits/{audit_id}/stream")

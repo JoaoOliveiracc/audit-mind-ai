@@ -55,6 +55,12 @@ export async function submitAnswers(
   )
 }
 
+/** Exclui a auditoria (204). Erros (404/409/500) viram Error com o `detail` da API. */
+export async function deleteAudit(auditId: string): Promise<void> {
+  const res = await fetch(`/audits/${auditId}`, { method: 'DELETE' })
+  if (!res.ok) await jsonOrThrow(res)
+}
+
 export async function getFindings(auditId: string): Promise<FindingsPayload> {
   return jsonOrThrow(await fetch(`/audits/${auditId}/findings`))
 }

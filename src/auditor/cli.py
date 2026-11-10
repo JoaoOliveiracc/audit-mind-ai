@@ -240,6 +240,45 @@ def serve(
     uvicorn.run("auditor.api.main:app", host=host, port=port, reload=reload)
 
 
+db_app = typer.Typer(help="Manutenção do banco local da API (~/.config/auditor).")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("compact")
+def db_compact(
+    db: Optional[Path] = typer.Option(
+        None, "--db", help="Banco de checkpoints (padrão: ~/.config/auditor/audits-checkpoints.sqlite)."
+    ),
+):
+    """Remove checkpoints de sub-agentes (legado) e compacta o banco. Rode com a API parada."""
+    import sqlite3
+
+    try:
+        from .api.retention import compact_checkpoints
+        from .api.store import CHECKPOINT_DB
+    except ImportError:
+        console.print("[red]Erro:[/red] dependências da API ausentes. Instale com: pip install -e \".[api]\"")
+        raise typer.Exit(code=1)
+
+    target = db or CHECKPOINT_DB
+    if not target.is_file():
+        console.print(f"Nada a compactar: {target} não existe.")
+        return
+    try:
+        stats = compact_checkpoints(target)
+    except sqlite3.OperationalError as exc:
+        if "locked" in str(exc).lower():
+            console.print("[red]Banco em uso[/red] — pare a API (auditor serve) e tente novamente.")
+        else:
+            console.print(f"[red]Erro ao compactar {target}:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    mb = 1024 * 1024
+    console.print(f"Checkpoints de sub-agentes removidos: {stats.removed_checkpoints}")
+    console.print(f"Writes de sub-agentes removidos: {stats.removed_writes}")
+    console.print(f"Tamanho: {stats.size_before / mb:.1f} MB → {stats.size_after / mb:.1f} MB")
+
+
 @app.command()
 def version():
     """Mostra a versão do Audit Mind AI."""

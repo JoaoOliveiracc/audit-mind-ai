@@ -93,3 +93,61 @@ def test_empty_plan(tmp_path, monkeypatch):
     _patch_common(monkeypatch)
     out = audit.audit_node({"project_path": str(tmp_path), "plan": {"dimensions": []}})
     assert out == {"findings": [], "dimension_summaries": [], "status": "audited"}
+
+
+# --- SUB-01: sub-agentes nunca gravam checkpoints (AD-001) -------------------- #
+from typing import TypedDict  # noqa: E402
+
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel  # noqa: E402
+from langchain_core.messages import AIMessage  # noqa: E402
+from langchain_core.runnables import RunnableLambda  # noqa: E402
+from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
+from langgraph.graph import END, START, StateGraph  # noqa: E402
+
+from auditor.config import Settings  # noqa: E402
+from auditor.tools.filesystem import make_project_tools  # noqa: E402
+
+
+class _ToolCallingFakeLLM(GenericFakeChatModel):
+    """Faz 1 tool call (list_directory) e depois escreve o relatório final."""
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def with_structured_output(self, schema, **kwargs):
+        return RunnableLambda(lambda _: DimensionResult(dimension="security", summary="ok"))
+
+
+def test_investigator_never_writes_subgraph_checkpoints(tmp_path):
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    llm = _ToolCallingFakeLLM(messages=iter([
+        AIMessage(content="", tool_calls=[{"name": "list_directory", "args": {"path": "."},
+                                           "id": "call-1"}]),
+        AIMessage(content="Relatório final: nenhum achado."),
+    ]))
+    tools = make_project_tools(tmp_path, Settings())
+    audit_state = {"project_path": str(tmp_path), "plan": {}, "user_context": {},
+                   "stack_profile": {}}
+
+    class _S(TypedDict, total=False):
+        summary: str
+
+    def node(_state):
+        # Mesma thread/contexto do nó pai: cenário em que a herança do checkpointer ocorre.
+        result = audit._investigate_dimension("security", audit_state, tools, llm, _Settings())
+        return {"summary": result.summary}
+
+    builder = StateGraph(_S)
+    builder.add_node("audit", node)
+    builder.add_edge(START, "audit")
+    builder.add_edge("audit", END)
+    saver = MemorySaver()
+    graph = builder.compile(checkpointer=saver)
+
+    out = graph.invoke({}, {"configurable": {"thread_id": "t-sub"}})
+
+    assert out["summary"] == "ok"  # o investigador rodou de fato
+    namespaces = set(saver.storage["t-sub"].keys())
+    write_namespaces = {ns for (thread, ns, _cid) in saver.writes if thread == "t-sub"}
+    assert namespaces == {""}
+    assert write_namespaces <= {""}

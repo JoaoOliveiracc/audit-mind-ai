@@ -87,6 +87,11 @@ class AuditStore:
             )
             self._conn.commit()
 
+    def delete(self, audit_id: str) -> None:
+        with self._lock:
+            self._conn.execute("DELETE FROM audits WHERE id = ?", (audit_id,))
+            self._conn.commit()
+
     def get(self, audit_id: str) -> Optional[dict]:
         with self._lock:
             cur = self._conn.execute("SELECT * FROM audits WHERE id = ?", (audit_id,))

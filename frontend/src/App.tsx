@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 
 import {
   createAudit,
+  deleteAudit,
   getAudit,
   getFindings,
   getProviders,
@@ -104,6 +105,17 @@ export default function App() {
     refreshHistory()
   }
 
+  /** Exclui uma auditoria do histórico; erros da API (ex.: 409 em execução) aparecem no alerta. */
+  const handleDeleteAudit = async (summary: AuditSummary) => {
+    setStartError(null)
+    try {
+      await deleteAudit(summary.id)
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : String(err))
+    }
+    refreshHistory()
+  }
+
   /** Reabre uma auditoria do histórico: completa → carrega achados; em curso → reconecta o stream. */
   const handleOpenAudit = async (summary: AuditSummary) => {
     streamRef.current?.close()
@@ -163,7 +175,7 @@ export default function App() {
                 {startError}
               </p>
             )}
-            <History audits={history} onOpen={handleOpenAudit} />
+            <History audits={history} onOpen={handleOpenAudit} onDelete={handleDeleteAudit} />
           </>
         )}
 
