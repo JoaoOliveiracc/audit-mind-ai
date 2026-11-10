@@ -112,7 +112,12 @@ Each dimension is audited in two decoupled phases:
 - **Parallelism:** investigators run in a `ThreadPoolExecutor`
   (`AUDITOR_MAX_CONCURRENT_INVESTIGATORS`, default 4). SSE/console progress is emitted from the
   main thread (where the LangGraph stream writer is valid); aggregation follows the plan order.
-- **`recursion_limit`:** `AUDITOR_MAX_INVESTIGATOR_STEPS` (default 80) — graph steps, roughly
+- **Step budget:** `AUDITOR_MAX_INVESTIGATOR_STEPS` (default 80) is the `recursion_limit` — graph
+  steps, ≈ 2 per tool call. The agent's `prompt` is a callable that appends a wrap-up notice when
+  `remaining_steps ≤ 5` (no extra graph node, so no budget is lost). If the prebuilt agent still ends
+  with its "need more steps" sentinel, one **salvage** call without tools writes the report from a
+  condensed transcript (tool results ≤ 2 000 chars each, ≤ 60 000 total); the dimension summary is
+  prefixed `⚠️ Investigação parcial…` and the SSE event status is `partial`.
   half of that in tool calls.
 - **Failure isolation:** an exception in one dimension is recorded in its summary without
   aborting the others.

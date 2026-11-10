@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G31 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G33 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -168,7 +168,7 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 | `AUDITOR_MAX_FILE_BYTES` | `200000` | Tamanho máx. por arquivo lido. |
 | `AUDITOR_MAX_FILES` | `5000` | Máx. de arquivos no inventário. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Máx. de resultados por busca. |
-| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` de cada investigador ReAct. |
+| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` de cada investigador ReAct (≈ 2 passos por tool call → 80 ≈ 40 tool calls). Perto do fim o agente é avisado para concluir; se estourar, um relatório de resgate é gerado e a dimensão sai marcada como **parcial**. |
 | `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigadores de dimensão em paralelo (1 = sequencial). |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Diretório dos relatórios. |
 | `AUDITOR_VERIFY_EVIDENCE` | `true` | Verificação determinística de evidência (§9). |
@@ -351,7 +351,9 @@ health_score = max(0, 100 - min(100, penalty))
    ReAct (`create_react_agent`, sem `response_format`) explora o código com as tools read-only e
    escreve um relatório textual; (b) *estruturação* — uma chamada isolada a
    `with_structured_output(DimensionResult)` (prompt `STRUCTURE_PROMPT`) converte só o texto do
-   relatório, sem o histórico de tool calls. Os investigadores rodam **em paralelo** (thread pool)
+   relatório, sem o histórico de tool calls. Se o orçamento de passos acabar, uma chamada de
+   *resgate* (sem tools) escreve o relatório a partir do histórico condensado e a dimensão é
+   marcada como parcial. Os investigadores rodam **em paralelo** (thread pool)
    e os achados são agregados na ordem do plano.
 6. **verify** — cada achado é conferido no disco (arquivo existe? evidência aparece? linha no
    intervalo?). Não-substanciados são **descartados**; sem-evidência têm confiança rebaixada.
@@ -457,8 +459,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~**G29**~~ ✅ | Os sub-agentes ReAct herdavam o checkpointer do grafo pai: **cada passo** de cada investigador era persistido. 2091 de 2220 checkpoints (≈ 880 MB de ≈ 886 MB) são de *subgraph*, todos de auditorias de 02–03/07 (35–132 MB cada). **Correção à análise:** auditorias desde 07/07 já não geravam esses checkpoints — só *por acidente* (o `ThreadPoolExecutor` não propaga o contexto do checkpointer). | 🟠 Alto | Reproduzido — banco local de 856 MB / 14 auditorias. | ✅ **Resolvido** — `create_react_agent(..., checkpointer=False)` (AD-001) + teste que roda o investigador no mesmo contexto do pai; `auditor db compact` limpa o legado. |
 | ~~G30~~ ✅ | `search_code` ignora **todo** o projeto se algum diretório **ancestral** da raiz tiver nome em `ignore_dirs` (`build`, `bin`, `env`, `out`, `target`, `dist`, `vendor`…) — testa partes do caminho absoluto. O mesmo padrão em `detect_stack` torna `has_tests=True` para qualquer projeto sob uma pasta `tests/`. | 🟡 Médio | Reproduzido — projeto em `…/build/proj` → `(nenhum resultado)`. `tools/filesystem.py:93`, `tools/project.py:83`. | ✅ **Resolvido** — `search_code` e `detect_stack` usam `path.relative_to(root).parts`. |
 | ~~G31~~ ✅ | Auditorias "zumbis": após reiniciar a API, registros em `running`/`waiting_input` ficam assim para sempre (o `registry` é em memória); o histórico tenta reconectar o SSE e recebe 404. | 🟡 Médio | Reproduzido — banco local tem 1 `running` + 2 `waiting_input` órfãos. | ✅ **Resolvido** — órfãs viram `interrupted` na subida; `POST /audits/{id}/resume` + botão **Retomar** retomam do checkpoint. |
-| G32 | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | Orçamento de passos com relatório forçado no fim; renomear/documentar a semântica. |
-| G33 | `synthesis_node` usa `str(response.content)` quando o provider devolve blocos (Anthropic/Gemini) → o resumo executivo sai como `repr` de lista. | 🟢 Baixo | Análise — `nodes/synthesis.py:46` (o `audit._final_report` já trata isso). | Reutilizar a extração de texto. |
+| ~~G32~~ ✅ | Investigador que atinge o `recursion_limit` termina com a mensagem padrão do LangGraph ("need more steps") e a dimensão sai vazia — o trabalho de investigação é perdido. `AUDITOR_MAX_INVESTIGATOR_STEPS` é o `recursion_limit` (≈ metade disso em tool calls). | 🟡 Médio | Análise — `nodes/audit.py:76-83`. | ✅ **Resolvido** (reproduzido antes) — aviso de conclusão quando restam ≤ 5 passos (prompt-função, sem passo extra) e, se ainda estourar, 1 chamada de resgate sem tools sobre o histórico condensado; a dimensão sai marcada como parcial (prefixo no resumo, SSE `partial`, aviso na CLI). Spec: `.specs/features/investigator-budget/`. |
+| ~~G33~~ ✅ | `synthesis_node` usa `str(response.content)` quando o provider devolve blocos (Anthropic/Gemini) → o resumo executivo sai como `repr` de lista. | 🟢 Baixo | Análise — `nodes/synthesis.py:46` (o `audit._final_report` já trata isso). | ✅ **Resolvido** — helper comum `nodes/_messages.content_text` usado por `audit` e `synthesis`. |
 | G34 | `search_code` percorre `root.glob("**/*")` inteiro (incluindo `node_modules`, `.venv`) e só filtra depois → lento em repositórios grandes. | 🟢 Baixo | Análise. | `os.walk` com poda de `ignore_dirs` (como `_iter_files`). |
 | G35 | O juiz adversarial é sequencial (achados × votos chamadas em série), ao contrário dos investigadores. | 🟢 Baixo | Análise — `nodes/adversarial.py:126`. | Thread pool com o mesmo limite de concorrência. |
 
@@ -478,7 +480,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | G42 | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ comentário corrigido; restante no backlog. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
-(disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → (4) G32+G33 → (5) G37+G38+G36 (higiene/CI) → restante.
+(disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → (5) G37+G38+G36 (higiene/CI) → restante.
 
 ---
 
@@ -502,8 +504,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G31 concluídos)
-G25–G31 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G33 concluídos)
+G25–G33 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

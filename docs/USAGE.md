@@ -66,7 +66,7 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_FILE_BYTES` | `200000` | Max. bytes read per file. |
 | `AUDITOR_MAX_FILES` | `5000` | Max. files in the inventory. |
 | `AUDITOR_MAX_SEARCH_RESULTS` | `50` | Max. results per search. |
-| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` per investigator (graph steps ≈ 2× tool calls). |
+| `AUDITOR_MAX_INVESTIGATOR_STEPS` | `80` | `recursion_limit` per investigator (graph steps ≈ 2× tool calls). Near the end the agent is told to conclude; if it still runs out, a salvage report is written and the dimension is marked **partial**. |
 | `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
 | `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
@@ -173,7 +173,7 @@ print(final["health_score"], final["report_html_path"])
 | `auditor: command not found` | venv not activated / no global installation | Activate the venv or perform the global installation (§1). |
 | `... requires the environment variable '<PROVIDER>_API_KEY'` | missing provider credential | Set the key in `.env` (or `~/.config/auditor/.env`). |
 | `RESOURCE_EXHAUSTED` / `credit balance too low` | provider quota/billing | Switch providers (`--provider`) or add credits. |
-| `Recursion limit reached` / dimension with no findings and a "need more steps" summary | project too large for the step budget | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS`. |
+| Dimension summary starts with `⚠️ Investigação parcial` (timeline: *parcial — orçamento esgotado*) | the investigator ran out of steps; its report was salvaged from what it had inspected | Increase `AUDITOR_MAX_INVESTIGATOR_STEPS` or narrow the focus with `--goal`. |
 | API answers `400 Host não permitido.` | request `Host` is not loopback (e.g. a custom hostname or LAN IP) | Use `localhost`/`127.0.0.1`, or add the host to `AUDITOR_ALLOWED_HOSTS`. |
 | Audit shows `interrompida` in the history | the API process stopped while it ran (restart, `--reload`) | Click **Retomar** (`POST /audits/{id}/resume`); the interrupted step re-runs. |
 | `~/.config/auditor/audits-checkpoints.sqlite` is very large | legacy audits (before the G29 fix) stored every sub-agent step | Stop the API and run `auditor db compact`; delete unwanted audits from the web history (`DELETE /audits/{id}`). |
