@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G39, G41 e G44–G46 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G47**; G25–G41 e G44–G46 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -115,7 +115,8 @@ relatório profissional — sem nunca modificar o código auditado.
 - Para a API/web: extras `.[api]` (FastAPI, uvicorn, sse-starlette, checkpointer SQLite) e Node.js
   (frontend Vite).
 
-Dependências versionadas em `pyproject.toml` (núcleo) e em `requirements.txt`. Providers e a
+Dependências versionadas **só** em `pyproject.toml` (fonte única — o antigo `requirements.txt` foi
+removido no G40). Providers e a
 camada de API são **extras opcionais** (`.[openai]`, `.[ollama]`, `.[api]`, `.[all-providers]`…).
 
 ---
@@ -415,7 +416,7 @@ A grande maioria foi **resolvida** pela reescrita em `src/auditor/`:
 | G1 | API key hardcoded | ✅ Resolvido — nenhuma chave no pacote; `app.py` legado removido do histórico (ver G14). |
 | G2 | `load_dotenv()` sem ler env | ✅ Resolvido — `pydantic-settings` + precedência de fontes. |
 | G3 | Protocolo errado (`ChatOllama` × `/v1`) | ✅ Resolvido — `init_chat_model` multi-provider; Ollama é um provider entre vários. |
-| G4 | Sem `requirements`/`pyproject` | ✅ Resolvido — `pyproject.toml` + `requirements.txt` versionados. |
+| G4 | Sem `requirements`/`pyproject` | ✅ Resolvido — `pyproject.toml` versionado (fonte única desde o G40). |
 | G5 | Sem `.gitignore` | ✅ Resolvido — `.gitignore` cobre `.env`, `.venv/`, `audit-reports/`. |
 | G6 | Contexto inteiro reenviado a cada turno | ✅ Resolvido — investigadores ReAct leem só o necessário via tools. |
 | G7 | `session_id` fixo | ✅ Resolvido — `thread_id`/`audit_id` únicos por auditoria. |
@@ -480,11 +481,12 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G37~~ ✅ | Sem pipeline de CI (`.github/workflows` inexistente): ruff, pytest, vitest, tsc e mypy não são exigidos — e o próprio SARIF do agente não é publicado. | 🟡 Médio | Análise. | ✅ **Resolvido** — `.github/workflows/ci.yml`: backend em Python 3.10 e 3.12 (ruff, mypy, pytest) e frontend em Node 20 (`npm ci`, vitest, tsc, build); `make ci` é o espelho local. Spec: `.specs/features/ci-quality-gates/`. |
 | ~~G38~~ ✅ | `mypy src` acusa 16 erros (dicts de estatística tipados como `object`, retorno de `with_structured_output`, `Optional` em `routes.py:109`). | 🟢 Baixo | Reproduzido. | ✅ **Resolvido** — `mypy src` com 0 erros (17 corrigidos sem mudar comportamento), exigido no CI; `make typecheck`. |
 | ~~G39~~ ✅ | Cobertura: nenhum teste cobre os casos-limite das tools (glob, symlink, ancestral — exatamente onde estão G25/G26/G30), nem `discovery`/`planning`/`synthesis`/CLI, nem um e2e com LLM falso. | 🟢 Baixo | Inventário de `tests/`. | ✅ **Resolvido** — testes unitários de `discovery`/`plan_questions`/`clarify` (interrupt real)/`planning`; 3 E2E offline com LLM falso (grafo, API HTTP com SSE, CLI) e juiz adversarial ligado; cobertura medida (`make coverage`, passo no CI, ~91%, sem mínimo). Spec: `.specs/features/coverage-and-e2e/`. |
-| G40 | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | ⚙️ **Parcial** — frontend só com npm (pnpm removido); ferramentas de dev com faixas limitadas e regras do ruff explícitas. Mínimos realistas aplicados com o G44 (`langgraph>=1.2`, `langchain>=1.3`, `langchain-core>=1.4`). Falta: fonte única (`requirements.txt` duplica o `pyproject`) e atualizar mínimos dos extras de provedores (ex.: `langchain-anthropic>=0.3.0` é anterior ao core 1.x — o resolvedor escolhe 1.x, sem quebra). Nota: o `_BudgetMiddleware` só implementa `wrap_model_call` síncrono; migrar para `ainvoke` exigiria `awrap_model_call`. |
+| ~~G40~~ ✅ | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | ✅ **Resolvido** — `requirements.txt` removido (`pyproject.toml` é a fonte única); mínimos dos provedores na linha LangChain 1.x (`>=1.0`; `google-genai>=3.0`), cada um verificado com `pip --dry-run` contra o core 1.4 (o antigo `langchain-anthropic>=0.3.0` era impossível de instalar); frontend só com npm; ferramentas de dev com faixas limitadas. Testes-guarda em `tests/test_ci_config.py`. Spec: `.specs/features/dependency-floors/`. |
 | ~~G41~~ ✅ | Duplicação: `_emit` copiado em 3 nós; `NODE_LABELS` em `cli.py` e `runner.py`; contagem por severidade em 4 lugares. | 🟢 Baixo | Análise. | ✅ **Resolvido** — `auditor/events.py` (`emit`, `NODE_LABELS`, `NODE_ICONS`) e `auditor/scoring.py` (`severity_counts`, `compute_health_score`); testes-guarda impedem novas cópias. Junto: `AUDITOR_DATA_DIR` resolvido sob demanda e `tests/conftest.py` isolando todos os testes (a suíte não toca mais `~/.config/auditor`). Spec: `.specs/features/dedup-and-test-isolation/`. |
 | ~~G44~~ ✅ | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | ✅ **Resolvido** — investigadores em `langchain.agents.create_agent`; o orçamento virou um middleware próprio (aviso nas 2 últimas chamadas + parada com marcador nosso), sem depender de `remaining_steps` nem de texto upstream; mínimos `langchain>=1.3`, `langgraph>=1.2`. Spec: `.specs/features/create-agent-migration/`. |
 | ~~G45~~ ✅ | Relatórios nomeados só com timestamp de 1 s (`auditoria-AAAAMMDD-HHMMSS.*`): duas auditorias concluídas no mesmo segundo sobrescrevem os arquivos uma da outra — e excluir uma apaga os relatórios da outra. | 🟢 Baixo | Análise (Verifier de `audit-retention`) — `report/renderer.py:177-182`. | ✅ **Resolvido** — nome `auditoria-<timestamp>-<id8>` (id da auditoria higienizado) + gravação exclusiva com sufixo `-N`. Spec: `.specs/features/history-polish/`. |
 | ~~G46~~ ✅ | Clicar na **linha** de uma auditoria `interrupted` no histórico tenta reconectar o SSE (404 → "Conexão perdida") em vez de orientar a usar **Retomar**. | 🟢 Baixo | Análise (`App.handleOpenAudit`). | ✅ **Resolvido** — abrir `interrupted` orienta a usar **Retomar**; abrir `error` mostra o erro gravado (sem stream); **Retomar** desabilitado ("Retomando…") em voo. |
+| G47 | `google_vertexai`, `cohere`, `together` e `fireworks` aparecem em `config.PROVIDER_PACKAGE` (e no `auditor providers`), mas não têm extra no `pyproject` — sem caminho de instalação nem mínimo de versão. | 🟢 Baixo | Análise (Verifier de `dependency-floors`). | Criar extras com mínimos da linha 1.x (verificados com `pip --dry-run`) ou retirá-los da lista. |
 | G42 | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ comentário corrigido; restante no backlog. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
@@ -512,8 +514,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G39, G41 e G44–G46 concluídos)
-G25–G39, G41 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G47; G25–G41 e G44–G46 concluídos — restam G42 e G47)
+G25–G41 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 
