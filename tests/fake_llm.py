@@ -66,7 +66,10 @@ class FakeLLM(BaseChatModel):
         return RunnableLambda(structured)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
-        if not self.bound:  # chamadas simples (síntese)
+        if not self.bound:  # chamadas simples (síntese, chat)
+            text = " ".join(str(m.content) for m in messages)
+            if "<relatorio>" in text and FINDING_TITLE not in text:  # chat sem o relatório real
+                raise AssertionError("o relatório salvo não chegou ao LLM do chat")
             reply = AIMessage(content=SUMMARY)
         elif isinstance(messages[-1], ToolMessage):  # investigador: já leu o arquivo → relatório
             reply = AIMessage(content=f"Relatório: {FINDING_TITLE} (app.py:1) — {EVIDENCE}")

@@ -126,6 +126,9 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
         <a className="btn" href={reportUrl(auditId, 'md')} download="auditoria.md">
           Baixar Markdown
         </a>
+        <a className="btn" href={reportUrl(auditId, 'sarif')} download="auditoria.sarif">
+          Baixar SARIF
+        </a>
       </div>
     </section>
   )

@@ -12,8 +12,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from sse_starlette.sse import EventSourceResponse
 
+from ..chat import build_chat_messages
 from ..config import PROVIDER_ENV_VAR, PROVIDER_PACKAGE, get_settings
 from ..llm import LLMConfigError, get_llm
+from ..nodes._messages import content_text
 from .deps import get_checkpointer, get_graph, get_store, registry
 from .retention import AuditBusyError, AuditNotFoundError, delete_audit
 from .runner import AuditRunner
@@ -22,6 +24,8 @@ from .schemas import (
     AuditSummary,
     BrowseEntry,
     BrowseResponse,
+    ChatRequest,
+    ChatResponse,
     CreateAuditRequest,
     ProviderInfo,
 )
@@ -128,6 +132,33 @@ def get_audit(audit_id: str) -> AuditSummary:
     if not record:
         raise HTTPException(404, "Auditoria não encontrada.")
     return _summary(record)
+
+
+@router.post("/audits/{audit_id}/chat", response_model=ChatResponse)
+def chat_with_report(audit_id: str, req: ChatRequest) -> ChatResponse:
+    """Responde perguntas sobre o relatório de uma auditoria concluída (sem ler código)."""
+    record = get_store().get(audit_id)
+    if not record:
+        raise HTTPException(404, "Auditoria não encontrada.")
+    if record["status"] != "completed":
+        raise HTTPException(409, "Chat disponível só para auditorias concluídas.")
+    values = get_graph().get_state({"configurable": {"thread_id": audit_id}}).values
+    if not values:
+        raise HTTPException(409, "Estado da auditoria indisponível para o chat.")
+    try:
+        llm = get_llm(record.get("provider"), record.get("model"))
+    except LLMConfigError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    messages = build_chat_messages(values, [t.model_dump() for t in req.history], req.question)
+    try:
+        response = llm.invoke(messages)
+    except Exception as exc:  # erro do provedor (rate limit, rede…)
+        raise HTTPException(502, f"Falha ao consultar o LLM: {exc}") from exc
+    answer = content_text(response.content).strip()
+    if not answer:
+        raise HTTPException(502, "O LLM devolveu uma resposta vazia.")
+    return ChatResponse(answer=answer)
 
 
 @router.post("/audits/{audit_id}/resume", response_model=AuditSummary)

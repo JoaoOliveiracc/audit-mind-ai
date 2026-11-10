@@ -1,4 +1,4 @@
-"""Ponta a ponta offline (spec: .specs/features/coverage-and-e2e — E2E-01..03)."""
+"""Ponta a ponta offline (specs: coverage-and-e2e — E2E-01..03; report-chat-and-sarif — E2E-04)."""
 from __future__ import annotations
 
 import json
@@ -127,6 +127,11 @@ def test_e2e02_api_end_to_end(e2e):
     assert FINDING_TITLE in html.text and FINDING_TITLE in md.text
     assert sarif.headers["content-type"].startswith("application/sarif+json")
     assert len(sarif.json()["runs"][0]["results"]) == 1
+
+    # E2E-04: chat sobre o relatório concluído (contexto vem do estado salvo da auditoria)
+    chat = client.post(f"/audits/{audit_id}/chat", json={"question": "Qual o achado mais grave?"})
+    assert chat.status_code == 200
+    assert chat.json() == {"answer": SUMMARY}           # LLM falso: chamadas simples → SUMMARY
 
 
 # --- E2E-03: CLI `auditor audit` ----------------------------------------------------------

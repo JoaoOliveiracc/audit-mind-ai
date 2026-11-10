@@ -11,7 +11,10 @@ async function jsonOrThrow(res: Response): Promise<any> {
     let detail = res.statusText
     try {
       const body = await res.json()
-      detail = body.detail ?? detail
+      // 422 do FastAPI: `detail` é uma lista de erros de validação.
+      detail = Array.isArray(body.detail)
+        ? body.detail.map((d: { msg?: string }) => d.msg ?? String(d)).join('; ')
+        : (body.detail ?? detail)
     } catch {
       /* corpo não-JSON: mantém statusText */
     }
@@ -70,7 +73,28 @@ export async function getFindings(auditId: string): Promise<FindingsPayload> {
   return jsonOrThrow(await fetch(`/audits/${auditId}/findings`))
 }
 
-export function reportUrl(auditId: string, format: 'md' | 'html'): string {
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** Pergunta sobre o relatório de uma auditoria concluída (POST /audits/{id}/chat). */
+export async function chatAudit(
+  auditId: string,
+  question: string,
+  history: ChatTurn[],
+): Promise<string> {
+  const body = await jsonOrThrow(
+    await fetch(`/audits/${auditId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, history }),
+    }),
+  )
+  return body.answer as string
+}
+
+export function reportUrl(auditId: string, format: 'md' | 'html' | 'sarif'): string {
   return `/audits/${auditId}/report?format=${format}`
 }
 

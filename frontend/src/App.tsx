@@ -223,7 +223,7 @@ export default function App() {
               payload={state.results}
               counts={state.completed.counts}
             />
-            <ChatDock />
+            <ChatDock auditId={auditId} />
           </>
         )}
       </main>

@@ -1,9 +1,9 @@
 """Modelos de request/response da API."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 
 class CreateAuditRequest(BaseModel):
@@ -58,3 +58,21 @@ class BrowseResponse(BaseModel):
     path: str
     parent: Optional[str] = None
     entries: list[BrowseEntry]
+
+
+class ChatTurn(BaseModel):
+    """Uma troca anterior da conversa (só na tela do usuário; reenviada a cada pergunta)."""
+
+    role: Literal["user", "assistant"]
+    content: Annotated[str, StringConstraints(max_length=4_000)]
+
+
+class ChatRequest(BaseModel):
+    """Pergunta sobre o relatório + até 10 trocas anteriores."""
+
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2_000)]
+    history: list[ChatTurn] = Field(default_factory=list, max_length=10)
+
+
+class ChatResponse(BaseModel):
+    answer: str

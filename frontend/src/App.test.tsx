@@ -17,6 +17,7 @@ vi.mock('./api/client', () => ({
   submitAnswers: vi.fn(),
   browseFs: vi.fn(),
   reportUrl: vi.fn(),
+  chatAudit: vi.fn(),
 }))
 vi.mock('./api/sse', () => ({ connectAuditStream: vi.fn() }))
 
@@ -144,5 +145,26 @@ describe('App — Retomar: recuperação e outra auditoria em voo (HIS-03)', () 
 
     expect(client.resumeAudit).toHaveBeenCalledTimes(1)
     expect(client.resumeAudit).toHaveBeenCalledWith('i1')
+  })
+})
+
+// Spec: .specs/features/report-chat-and-sarif/spec.md — UI-02 (ligação App → ChatDock)
+describe('App — chat da auditoria aberta', () => {
+  it('o ChatDock pergunta sobre a auditoria concluída que está aberta', async () => {
+    const done: AuditSummary = { ...interrupted, id: 'c1', status: 'completed',
+      project_path: '/proj/ok', health_score: 90, counts: {} }
+    vi.mocked(client.listAudits).mockResolvedValue([done])
+    vi.mocked(client.getAudit).mockResolvedValue(done)
+    vi.mocked(client.getFindings).mockResolvedValue({ findings: [], dimension_summaries: [],
+      health_score: 90, executive_summary: 'ok', stack_profile: {} as never })
+    vi.mocked(client.chatAudit).mockResolvedValue('Resposta.')
+    render(<App />)
+
+    fireEvent.click(await screen.findByText('/proj/ok'))
+    const box = await screen.findByRole('textbox', { name: 'Pergunta sobre o resultado' })
+    fireEvent.change(box, { target: { value: 'Q?' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+
+    await waitFor(() => expect(client.chatAudit).toHaveBeenCalledWith('c1', 'Q?', []))
   })
 })
