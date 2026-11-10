@@ -95,6 +95,7 @@ Each provider requires its integration package and its credential:
 ```bash
 # install the desired provider(s)
 pip install -e ".[openai]"        # or .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
+pip install -e ".[vertexai]"      # or .[cohere], .[together], .[fireworks], .[aws]
 
 # select via flag (overrides .env)
 auditor audit /proj --provider openai       --model gpt-4o

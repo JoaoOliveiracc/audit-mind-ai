@@ -105,6 +105,7 @@ Install the provider package and select it via env or flag:
 
 ```bash
 pip install -e ".[openai]"          # or .[google] / .[groq] / .[deepseek] / .[ollama] / .[all-providers]
+pip install -e ".[vertexai]"          # or .[cohere] / .[together] / .[fireworks] / .[aws]
 
 auditor audit /proj --provider openai       --model gpt-4o
 auditor audit /proj --provider google_genai --model gemini-2.0-flash

@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G47**; G25–G41 e G44–G46 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G47**; G25–G41 e G44–G47 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -137,6 +137,7 @@ cp .env.example .env
 
 # 3. Provider(s) adicionais, se necessário
 pip install -e ".[openai]"        # ou .[google], .[groq], .[deepseek], .[ollama], .[all-providers]
+pip install -e ".[vertexai]"        # ou .[cohere], .[together], .[fireworks], .[aws]
 
 # 4. API/web (opcional)
 pip install -e ".[api]"
@@ -486,7 +487,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G44~~ ✅ | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | ✅ **Resolvido** — investigadores em `langchain.agents.create_agent`; o orçamento virou um middleware próprio (aviso nas 2 últimas chamadas + parada com marcador nosso), sem depender de `remaining_steps` nem de texto upstream; mínimos `langchain>=1.3`, `langgraph>=1.2`. Spec: `.specs/features/create-agent-migration/`. |
 | ~~G45~~ ✅ | Relatórios nomeados só com timestamp de 1 s (`auditoria-AAAAMMDD-HHMMSS.*`): duas auditorias concluídas no mesmo segundo sobrescrevem os arquivos uma da outra — e excluir uma apaga os relatórios da outra. | 🟢 Baixo | Análise (Verifier de `audit-retention`) — `report/renderer.py:177-182`. | ✅ **Resolvido** — nome `auditoria-<timestamp>-<id8>` (id da auditoria higienizado) + gravação exclusiva com sufixo `-N`. Spec: `.specs/features/history-polish/`. |
 | ~~G46~~ ✅ | Clicar na **linha** de uma auditoria `interrupted` no histórico tenta reconectar o SSE (404 → "Conexão perdida") em vez de orientar a usar **Retomar**. | 🟢 Baixo | Análise (`App.handleOpenAudit`). | ✅ **Resolvido** — abrir `interrupted` orienta a usar **Retomar**; abrir `error` mostra o erro gravado (sem stream); **Retomar** desabilitado ("Retomando…") em voo. |
-| G47 | `google_vertexai`, `cohere`, `together` e `fireworks` aparecem em `config.PROVIDER_PACKAGE` (e no `auditor providers`), mas não têm extra no `pyproject` — sem caminho de instalação nem mínimo de versão. | 🟢 Baixo | Análise (Verifier de `dependency-floors`). | Criar extras com mínimos da linha 1.x (verificados com `pip --dry-run`) ou retirá-los da lista. |
+| ~~G47~~ ✅ | `google_vertexai`, `cohere`, `together` e `fireworks` aparecem em `config.PROVIDER_PACKAGE` (e no `auditor providers`), mas não têm extra no `pyproject` — sem caminho de instalação nem mínimo de versão. | 🟢 Baixo | Análise (Verifier de `dependency-floors`). | ✅ **Resolvido** — extras `vertexai` (`>=3.0`), `cohere` (`>=0.5`), `together` (`>=0.4`) e `fireworks` (`>=1.0`): 1ª versão que **declara** `langchain-core>=1.0` nos metadados do PyPI. Teste garante que todo provedor anunciado tem caminho de instalação. Spec: `.specs/features/provider-extras/`. |
 | G42 | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ comentário corrigido; restante no backlog. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
@@ -514,8 +515,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G47; G25–G41 e G44–G46 concluídos — restam G42 e G47)
-G25–G41 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G47; todos concluídos exceto G42)
+G25–G41 e G44–G47 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 
