@@ -56,7 +56,7 @@ The project being audited is **untrusted input**:
   Requests whose `Host` is not loopback (`localhost`, `127.0.0.1`, `[::1]`) get `400` — this blocks
   DNS rebinding (G27). `auditor serve` refuses a non-local `--host` unless `--allow-remote` is given;
   even then, remote clients are only accepted for hosts listed in `AUDITOR_ALLOWED_HOSTS`.
-- **Local data at rest:** `~/.config/auditor/*.sqlite` stores audit state, including excerpts of
+- **Local data at rest:** `$AUDITOR_DATA_DIR/*.sqlite` (default `~/.config/auditor`) stores audit state, including excerpts of
   audited files. Nothing expires automatically: delete audits from the web history (or
   `DELETE /audits/{id}`), which removes metadata, checkpoints and the `.md/.html/.sarif` reports.
   `auditor db compact` reclaims space from legacy sub-agent checkpoints.

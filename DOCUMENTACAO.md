@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G38 e G44–G46 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G46**; G25–G38, G41 e G44–G46 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -175,6 +175,7 @@ Toda a configuração vem de variáveis de ambiente (prefixo `AUDITOR_`), carreg
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Juiz adversarial (custa tokens; §9). |
 | `AUDITOR_ADVERSARIAL_MIN_SEVERITY` | `high` | Só julga achados ≥ este limiar. |
 | `AUDITOR_ADVERSARIAL_VOTES` | `1` | Nº de vereditos por achado (1–3, lentes distintas). |
+| `AUDITOR_DATA_DIR` | `~/.config/auditor` | Bancos SQLite da API (metadados + checkpoints); criado no primeiro uso, nunca no import. |
 
 A credencial de cada provider é lida **diretamente do ambiente pela SDK correspondente**
 (`ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, …); `auditor.config.PROVIDER_ENV_VAR` mapeia
@@ -479,7 +480,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G38~~ ✅ | `mypy src` acusa 16 erros (dicts de estatística tipados como `object`, retorno de `with_structured_output`, `Optional` em `routes.py:109`). | 🟢 Baixo | Reproduzido. | ✅ **Resolvido** — `mypy src` com 0 erros (17 corrigidos sem mudar comportamento), exigido no CI; `make typecheck`. |
 | G39 | Cobertura: nenhum teste cobre os casos-limite das tools (glob, symlink, ancestral — exatamente onde estão G25/G26/G30), nem `discovery`/`planning`/`synthesis`/CLI, nem um e2e com LLM falso. | 🟢 Baixo | Inventário de `tests/`. | Testes de regressão junto de cada correção. |
 | G40 | Drift de dependências: `requirements.txt` duplica o núcleo do `pyproject` (sem extras); dois lockfiles no frontend (npm + pnpm); mínimos `langgraph>=0.2.60`/`langchain>=0.3` enquanto o código usa APIs 1.x (`langgraph.config.get_stream_writer`). | 🟢 Baixo | Análise. | ⚙️ **Parcial** — frontend só com npm (pnpm removido); ferramentas de dev com faixas limitadas e regras do ruff explícitas. Mínimos realistas aplicados com o G44 (`langgraph>=1.2`, `langchain>=1.3`, `langchain-core>=1.4`). Falta: fonte única (`requirements.txt` duplica o `pyproject`) e atualizar mínimos dos extras de provedores (ex.: `langchain-anthropic>=0.3.0` é anterior ao core 1.x — o resolvedor escolhe 1.x, sem quebra). Nota: o `_BudgetMiddleware` só implementa `wrap_model_call` síncrono; migrar para `ainvoke` exigiria `awrap_model_call`. |
-| G41 | Duplicação: `_emit` copiado em 3 nós; `NODE_LABELS` em `cli.py` e `runner.py`; contagem por severidade em 4 lugares. | 🟢 Baixo | Análise. | Extrair para um módulo comum (`auditor.events`, `auditor.scoring`). |
+| ~~G41~~ ✅ | Duplicação: `_emit` copiado em 3 nós; `NODE_LABELS` em `cli.py` e `runner.py`; contagem por severidade em 4 lugares. | 🟢 Baixo | Análise. | ✅ **Resolvido** — `auditor/events.py` (`emit`, `NODE_LABELS`, `NODE_ICONS`) e `auditor/scoring.py` (`severity_counts`, `compute_health_score`); testes-guarda impedem novas cópias. Junto: `AUDITOR_DATA_DIR` resolvido sob demanda e `tests/conftest.py` isolando todos os testes (a suíte não toca mais `~/.config/auditor`). Spec: `.specs/features/dedup-and-test-isolation/`. |
 | ~~G44~~ ✅ | `langgraph.prebuilt.create_react_agent` está **deprecado** desde o LangGraph 1.0 (será removido na 2.0) em favor de `langchain.agents.create_agent`; o aviso só aparece na chamada (visto nos testes de `audit`). | 🟡 Médio | Reproduzido — `LangGraphDeprecatedSinceV10` em `nodes/audit.py`. | ✅ **Resolvido** — investigadores em `langchain.agents.create_agent`; o orçamento virou um middleware próprio (aviso nas 2 últimas chamadas + parada com marcador nosso), sem depender de `remaining_steps` nem de texto upstream; mínimos `langchain>=1.3`, `langgraph>=1.2`. Spec: `.specs/features/create-agent-migration/`. |
 | ~~G45~~ ✅ | Relatórios nomeados só com timestamp de 1 s (`auditoria-AAAAMMDD-HHMMSS.*`): duas auditorias concluídas no mesmo segundo sobrescrevem os arquivos uma da outra — e excluir uma apaga os relatórios da outra. | 🟢 Baixo | Análise (Verifier de `audit-retention`) — `report/renderer.py:177-182`. | ✅ **Resolvido** — nome `auditoria-<timestamp>-<id8>` (id da auditoria higienizado) + gravação exclusiva com sufixo `-N`. Spec: `.specs/features/history-polish/`. |
 | ~~G46~~ ✅ | Clicar na **linha** de uma auditoria `interrupted` no histórico tenta reconectar o SSE (404 → "Conexão perdida") em vez de orientar a usar **Retomar**. | 🟢 Baixo | Análise (`App.handleOpenAudit`). | ✅ **Resolvido** — abrir `interrupted` orienta a usar **Retomar**; abrir `error` mostra o erro gravado (sem stream); **Retomar** desabilitado ("Retomando…") em voo. |
@@ -510,8 +511,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G38 e G44–G46 concluídos)
-G25–G38 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — em andamento (G25–G46; G25–G38, G41 e G44–G46 concluídos)
+G25–G38, G41 e G44–G46 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

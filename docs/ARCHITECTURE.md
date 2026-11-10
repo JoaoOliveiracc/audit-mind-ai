@@ -60,6 +60,8 @@ from the last checkpoint (pending interrupt → re-ask; pending nodes → `strea
 | `config.py` | Settings via `pydantic-settings` (env / `.env` / `~/.config/auditor/.env`); provider → credential/package maps. |
 | `llm.py` | Multi-provider factory (`init_chat_model`), memoized per `(provider, model, params)`; per-audit override. |
 | `logging_config.py` | Idempotent logging setup (`AUDITOR_LOG_LEVEL`). |
+| `events.py` | Single `emit` (LangGraph custom stream) + `NODE_LABELS`/`NODE_ICONS` shared by nodes, API and CLI. |
+| `scoring.py` | Health score + severity counting (with/without zeros) shared by synthesis, report, CLI and API. |
 | `state.py` | `AuditState` (TypedDict + reducers) and Pydantic domain models. |
 | `tools/project.py` | Stack detection and inventory construction. |
 | `tools/filesystem.py` | Scoped read-only tools (read/list/search). |

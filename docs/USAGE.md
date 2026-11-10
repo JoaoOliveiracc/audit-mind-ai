@@ -70,6 +70,7 @@ Available variables (all optional except the key):
 | `AUDITOR_MAX_CONCURRENT_INVESTIGATORS` | `4` | Investigators (and adversarial-judge calls) running in parallel (1 = sequential). Lower it for Ollama/low rate limits. |
 | `AUDITOR_OUTPUT_DIR` | `./audit-reports` | Output directory for the reports. |
 | `AUDITOR_LOG_LEVEL` | `INFO` | Diagnostic log level (stderr). |
+| `AUDITOR_DATA_DIR` | `~/.config/auditor` | Where the API keeps its SQLite databases (audit metadata + checkpoints); created on first use. |
 | `AUDITOR_ALLOWED_HOSTS` | — | Extra `Host` values the API accepts besides `localhost`/`127.0.0.1`/`[::1]` (comma-separated). Only for deliberate exposure with `serve --allow-remote`. |
 | `AUDITOR_VERIFY_EVIDENCE` | `true` | Deterministic evidence check (drops unsubstantiated findings). |
 | `AUDITOR_ADVERSARIAL_VERIFY` | `false` | Skeptical LLM judge (costs tokens). |
