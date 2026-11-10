@@ -1,7 +1,7 @@
 # Núcleo do agent
-langgraph>=0.2.60
-langchain>=0.3.0
-langchain-core>=0.3.0
+langgraph>=1.2
+langchain>=1.3
+langchain-core>=1.4
 langchain-anthropic>=0.3.0
 
 # Modelagem / validação

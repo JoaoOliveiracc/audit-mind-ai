@@ -112,7 +112,7 @@ def create_audit(req: CreateAuditRequest) -> AuditSummary:
     registry[audit_id] = runner
     runner.start()
 
-    return _summary(store.get(audit_id))
+    return _summary(_require(store, audit_id))
 
 
 @router.get("/audits", response_model=list[AuditSummary])
@@ -163,7 +163,7 @@ def resume_audit(audit_id: str) -> AuditSummary:
         runner = AuditRunner(audit_id, get_graph(), store, None, resume=True)
         registry[audit_id] = runner
     runner.start()
-    return _summary(store.get(audit_id))
+    return _summary(_require(store, audit_id))
 
 
 @router.delete("/audits/{audit_id}", status_code=204)
@@ -251,6 +251,14 @@ def get_report(audit_id: str, format: str = "html"):
     if format == "sarif":
         return Response(content, media_type="application/sarif+json")
     return PlainTextResponse(content)
+
+
+def _require(store, audit_id: str) -> dict:
+    """Registro que acabou de ser criado/atualizado; ausência indica estado inconsistente."""
+    record = store.get(audit_id)
+    if record is None:
+        raise HTTPException(500, "Estado inconsistente: auditoria não encontrada após gravação.")
+    return record
 
 
 def _summary(record: dict) -> AuditSummary:

@@ -12,10 +12,11 @@ license = { text = "MIT" }
 authors = [{ name = "João Monteiro", email = "joao.monteiro@fabricainfo.com" }]
 keywords = ["langchain", "langgraph", "agent", "code-audit", "security", "quality"]
 
+# Mínimos = versões testadas (CI + venv 3.10). `create_agent` + middleware exigem langchain 1.x.
 dependencies = [
-    "langgraph>=0.2.60",
-    "langchain>=0.3.0",
-    "langchain-core>=0.3.0",
+    "langgraph>=1.2",
+    "langchain>=1.3",
+    "langchain-core>=1.4",
     "langchain-anthropic>=0.3.0",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
@@ -29,8 +30,11 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.5",
-    "mypy>=1.10",
+    "httpx>=0.27",            # FastAPI TestClient (antes só transitivo)
+    "pyyaml>=6",              # tests/test_ci_config.py (antes só transitivo)
+    # Faixas limitadas: versões novas mudam regras/checagens e quebrariam o CI sem aviso.
+    "ruff>=0.15,<0.18",
+    "mypy>=2.1,<3",
 ]
 # Provedores de LLM adicionais (Anthropic já vem no núcleo).
 openai = ["langchain-openai>=0.2"]
@@ -66,6 +70,11 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.lint]
+# Conjunto explícito (o padrão clássico do ruff): o default mudou na 0.17 e passaria
+# a exigir dezenas de regras novas. Ampliar aqui é uma decisão consciente.
+select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

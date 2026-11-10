@@ -1,6 +1,7 @@
 """Persistência: checkpointer do grafo (SqliteSaver) + metadados de auditorias."""
 from __future__ import annotations
 
+import builtins
 import json
 import sqlite3
 import threading
@@ -117,7 +118,7 @@ class AuditStore:
         return [self._row_to_dict(cols, r) for r in rows]
 
     @staticmethod
-    def _row_to_dict(cols: list[str], row: tuple) -> dict:
+    def _row_to_dict(cols: builtins.list[str], row: tuple) -> dict:
         data = dict(zip(cols, row))
         counts = data.pop("counts_json", None)
         data["counts"] = json.loads(counts) if counts else None

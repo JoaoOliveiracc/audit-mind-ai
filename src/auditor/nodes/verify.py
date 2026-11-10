@@ -11,6 +11,7 @@ from __future__ import annotations
 import difflib
 import re
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 from rich.console import Console
 
@@ -18,6 +19,8 @@ from ..config import get_settings
 from ..state import AuditState
 from ..tools.filesystem import _safe_resolve
 
+# Fallback para LangGraph sem stream writer: tipado como Optional para o mypy.
+get_stream_writer: Optional[Callable[[], Callable[[Any], None]]]
 try:
     from langgraph.config import get_stream_writer
 except ImportError:  # pragma: no cover
@@ -121,7 +124,7 @@ def verify_node(state: AuditState) -> dict:
 
     root = Path(state["project_path"]).expanduser().resolve()
     kept: list[dict] = []
-    stats = {"enabled": True, "verified": 0, "unverified": 0, "rejected": 0,
+    stats: dict[str, Any] = {"enabled": True, "verified": 0, "unverified": 0, "rejected": 0,
              "rejected_titles": []}
 
     for finding in findings:

@@ -4,9 +4,12 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, Callable, Optional
 
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import hook_config
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langgraph.prebuilt import create_react_agent
 from rich.console import Console
 
 from ..config import get_settings
@@ -22,20 +25,20 @@ from ..state import AuditState, DimensionResult
 from ..tools.filesystem import make_project_tools
 from ._messages import content_text
 
-try:  # disponível apenas em versões recentes do LangGraph
+# Disponível apenas em versões recentes do LangGraph; Optional para o mypy.
+get_stream_writer: Optional[Callable[[], Callable[[Any], None]]]
+try:
     from langgraph.config import get_stream_writer
 except ImportError:  # pragma: no cover
     get_stream_writer = None
 
 _console = Console(stderr=True)
 
-# Com remaining_steps ≤ este valor, o investigador recebe o aviso para concluir (G32).
-# O loop ReAct consome 2 passos por tool call e o prebuilt aborta abaixo de 2.
-_WRAP_UP_AT = 5
-
-# Mensagem final do agente prebuilt quando o recursion_limit acaba com tool calls pendentes
-# (langgraph.prebuilt.chat_agent_executor). Detalhe upstream — coberto por teste real.
-_BUDGET_SENTINEL = "Sorry, need more steps to process this request."
+# Orçamento do investigador (G32/G44): AUDITOR_MAX_INVESTIGATOR_STEPS ≈ 2 passos por tool
+# call → até steps // 2 chamadas do modelo. As _WRAP_UP_CALLS últimas recebem o aviso para
+# concluir; ao fim, o middleware encerra com o NOSSO marcador (sem depender de texto upstream).
+_WRAP_UP_CALLS = 2
+BUDGET_EXHAUSTED_MARKER = "[auditor] orçamento de chamadas do modelo esgotado"
 _TOOL_RESULT_CHARS = 2_000     # por resultado de ferramenta no histórico de resgate
 _TRANSCRIPT_CHARS = 60_000     # teto do histórico de resgate (mantém o mais recente)
 PARTIAL_PREFIX = "⚠️ Investigação parcial (orçamento de passos esgotado). "
@@ -74,7 +77,7 @@ def is_partial(result: DimensionResult) -> bool:
 def _budget_exhausted(messages: list) -> bool:
     last = messages[-1] if messages else None
     return (isinstance(last, AIMessage) and not last.tool_calls
-            and content_text(last.content).strip() == _BUDGET_SENTINEL)
+            and content_text(last.content) == BUDGET_EXHAUSTED_MARKER)
 
 
 def _condensed_transcript(messages: list) -> str:
@@ -83,7 +86,7 @@ def _condensed_transcript(messages: list) -> str:
     for msg in messages:
         if isinstance(msg, AIMessage):
             text = content_text(msg.content).strip()
-            if text and text != _BUDGET_SENTINEL:
+            if text and text != BUDGET_EXHAUSTED_MARKER:
                 parts.append(f"[investigador] {text}")
             for call in msg.tool_calls:
                 args = json.dumps(call.get("args", {}), ensure_ascii=False)
@@ -114,19 +117,36 @@ def _salvage_report(llm, dimension: str, messages: list) -> str:
     return content_text(response.content)
 
 
-def _make_prompt(system: str):
-    """Prompt-função do agente: system primeiro; aviso de conclusão perto do fim do orçamento.
+def _model_calls(messages: list) -> int:
+    """Chamadas do modelo já feitas = ``AIMessage``s no histórico (sem estado extra)."""
+    return sum(1 for m in messages if isinstance(m, AIMessage))
 
-    Roda dentro do nó do agente (``remaining_steps`` vem do estado), sem nó extra no
-    grafo — ao contrário de ``pre_model_hook``, que consumiria passos do orçamento.
+
+class _BudgetMiddleware(AgentMiddleware):
+    """Orçamento de chamadas do modelo para o investigador (substitui ``remaining_steps``).
+
+    - ``wrap_model_call``: nas últimas ``_WRAP_UP_CALLS`` chamadas, acrescenta o aviso de
+      conclusão ao fim da entrada (o system prompt continua primeiro).
+    - ``before_model``: esgotado o orçamento, encerra com ``BUDGET_EXHAUSTED_MARKER`` —
+      sem chegar ao ``recursion_limit``, que no ``create_agent`` lança e perde o histórico.
     """
-    def prompt(state) -> list:
-        messages = [SystemMessage(content=system), *state["messages"]]
-        remaining = state.get("remaining_steps")
-        if remaining is not None and remaining <= _WRAP_UP_AT:
-            messages.append(HumanMessage(content=WRAP_UP_NOTICE))
-        return messages
-    return prompt
+
+    def __init__(self, max_model_calls: int) -> None:
+        super().__init__()
+        self.max_model_calls = max_model_calls
+
+    @hook_config(can_jump_to=["end"])
+    def before_model(self, state, runtime) -> dict[str, Any] | None:
+        if _model_calls(state["messages"]) >= self.max_model_calls:
+            return {"messages": [AIMessage(content=BUDGET_EXHAUSTED_MARKER)], "jump_to": "end"}
+        return None
+
+    def wrap_model_call(self, request, handler):
+        if self.max_model_calls - _model_calls(request.messages) <= _WRAP_UP_CALLS:
+            request = request.override(
+                messages=[*request.messages, HumanMessage(content=WRAP_UP_NOTICE)]
+            )
+        return handler(request)
 
 
 def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settings) -> DimensionResult | None:
@@ -148,12 +168,16 @@ def _investigate_dimension(dimension: str, state: AuditState, tools, llm, settin
         user_context=json.dumps(state.get("user_context", {}), ensure_ascii=False),
         stack_profile=json.dumps(state.get("stack_profile", {}), ensure_ascii=False),
     )
+    max_calls = max(2, settings.max_investigator_steps // 2)
     # checkpointer=False (AD-001): o sub-agente nunca herda o checkpointer do grafo
     # pai — senão cada passo ReAct (com trechos de código) é persistido.
-    agent = create_react_agent(llm, tools=tools, prompt=_make_prompt(prompt), checkpointer=False)
+    agent = create_agent(llm, tools=tools, system_prompt=prompt,
+                         middleware=[_BudgetMiddleware(max_calls)], checkpointer=False)
     result = agent.invoke(
-        {"messages": [("user", f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
-        config={"recursion_limit": settings.max_investigator_steps},
+        {"messages": [HumanMessage(
+            content=f"Investigue e audite a dimensão '{dimension}' deste projeto.")]},
+        # Rede de segurança: o _BudgetMiddleware encerra muito antes (≈ 3–4 nós por volta).
+        config={"recursion_limit": 4 * max_calls + 10},
     )
 
     messages = result.get("messages", [])

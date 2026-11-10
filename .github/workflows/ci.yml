@@ -1,0 +1,64 @@
+# CI do Audit Mind AI — espelho de `make ci` (lint, tipos, testes e build).
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]   # mínima declarada (pyproject) e atual
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Instalar dependências
+        run: |
+          python -m pip install -U pip
+          pip install -e ".[dev,api]"
+      - name: Lint (ruff)
+        run: ruff check src tests
+      - name: Tipos (mypy)
+        run: mypy src
+      - name: Testes (pytest)
+        run: pytest -q
+
+  frontend:
+    name: frontend (Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+      - name: Testes (vitest)
+        run: npm test
+      - name: Tipos + build (tsc + vite build)
+        run: npm run build

@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/investigator-budget/` — verified PASS after fix loop 1 (previous: search-code-scoping, audit-retention, api-hardening — all verified)
+- **Feature**: `.specs/features/create-agent-migration/` (G44) — verified PASS after fix loop 1; `ci-quality-gates` also verified, both uncommitted
 - **Phase / Task**: complete
-- **Completed**: G25–G33 resolved across 4 features
+- **Completed**: G25–G33, G36–G38, G44 (G40 partial)
 - **In-progress**: none
-- **Next step**: user commits api-hardening + investigator-budget; next backlog per DOCUMENTACAO.md §10.3 — (5) G37+G38+G36 (CI, mypy), G44 (create_agent migration), G45/G46, G34/G35, G39–G42
+- **Next step**: user commits + pushes and checks the first GitHub Actions run. Backlog (DOCUMENTACAO.md §10.3): G46, G45, G34/G35, G39, G40 rest, G41, G42, test writing ~/.config/auditor
 - **Blockers**: none
-- **Uncommitted files**: api-hardening and investigator-budget (code, tests, docs, .specs/) — user runs git
+- **Uncommitted files**: ci-quality-gates + create-agent-migration (shared: `src/auditor/nodes/audit.py`, `pyproject.toml`, docs)
 - **Branch**: develop

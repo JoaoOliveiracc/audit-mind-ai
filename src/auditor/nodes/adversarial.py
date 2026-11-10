@@ -9,6 +9,7 @@ escopado por severidade.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from rich.console import Console
@@ -19,6 +20,8 @@ from ..prompts.templates import JUDGE_LENSES, JUDGE_PROMPT, JUDGE_SYSTEM
 from ..state import AuditState, Verdict
 from ..tools.filesystem import _safe_resolve
 
+# Fallback para LangGraph sem stream writer: tipado como Optional para o mypy.
+get_stream_writer: Optional[Callable[[], Callable[[Any], None]]]
 try:
     from langgraph.config import get_stream_writer
 except ImportError:  # pragma: no cover
@@ -120,7 +123,7 @@ def adversarial_node(state: AuditState) -> dict:
     llm = get_llm(state.get("provider"), state.get("model")).with_structured_output(Verdict)
 
     kept: list[dict] = []
-    stats = {"enabled": True, "judged": 0, "confirmed": 0, "refuted": 0,
+    stats: dict[str, Any] = {"enabled": True, "judged": 0, "confirmed": 0, "refuted": 0,
              "uncertain": 0, "refuted_titles": []}
 
     for finding in findings:

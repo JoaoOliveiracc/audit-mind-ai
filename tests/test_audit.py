@@ -181,6 +181,7 @@ class _RecordingLLM(GenericFakeChatModel):
     bound: bool = False
     obey: bool = False
     salvage_raises: bool = False
+    salvage_empty: bool = False
 
     def bind_tools(self, tools, **kwargs):
         return self.model_copy(update={"bound": True})
@@ -199,7 +200,8 @@ class _RecordingLLM(GenericFakeChatModel):
             SALVAGE_VARIANTS.append(self.bound)
             if self.salvage_raises:
                 raise RuntimeError("falha no resgate")
-            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=SALVAGED))])
+            reply = "" if self.salvage_empty else SALVAGED
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=reply))])
         if self.obey and isinstance(messages[-1], HumanMessage) \
                 and messages[-1].content == WRAP_UP_NOTICE:
             return ChatResult(generations=[ChatGeneration(
@@ -208,7 +210,7 @@ class _RecordingLLM(GenericFakeChatModel):
 
 
 class _Budget:
-    max_investigator_steps = 12  # prompt vê remaining_steps 11, 9, 7, 5, 3, 1
+    max_investigator_steps = 12  # → orçamento de 12 // 2 = 6 chamadas do modelo
 
 
 def _always_tool_calls():
@@ -245,10 +247,10 @@ def test_wrap_up_notice_only_when_few_steps_remain(tmp_path):
     _run_investigator(tmp_path, _always_tool_calls())
 
     calls = _agent_calls(tmp_path)
-    assert len(calls) == 6                     # 11, 9, 7, 5, 3, 1 passos restantes
+    assert len(calls) == 6                     # orçamento: 6 chamadas do modelo
     notice = [isinstance(c[-1], HumanMessage) and c[-1].content == WRAP_UP_NOTICE for c in calls]
-    assert notice == [False, False, False, True, True, True]
-    for c in calls[:3]:
+    assert notice == [False, False, False, False, True, True]   # BUD-01r: 2 últimas chamadas
+    for c in calls[:4]:
         assert all(getattr(m, "content", None) != WRAP_UP_NOTICE for m in c)
 
 
@@ -269,7 +271,8 @@ def test_exhausted_budget_salvages_report_from_gathered_evidence(tmp_path):
     assert len(salvage) == 1                                   # BUD-02: uma chamada extra
     transcript = salvage[0][-1].content
     assert "SECRET_TOKEN = 'abc'" in transcript                # resultado de tool coletado
-    assert "Sorry, need more steps" not in transcript
+    assert audit.BUDGET_EXHAUSTED_MARKER not in transcript    # marcador nunca vai ao resgate
+    assert transcript.count("[resultado read_file]") == 6       # MIG-03: todos os resultados
     assert len(transcript) <= 60_000
     assert _structurer_inputs()[0][-1] == ("user", SALVAGED)   # relatório = texto do resgate
     assert SALVAGE_VARIANTS == [False]                         # BUD-02: sem tools
@@ -346,15 +349,17 @@ def test_salvage_transcript_is_delimited_untrusted_and_cannot_close_the_block(tm
     assert "não confiável" in salvage[0][0].content.lower()
 
 
-class _TinyBudget:
-    max_investigator_steps = 2  # o prebuilt aborta já na 1ª tool call: nada coletado
+def test_exhausted_with_empty_transcript_makes_no_salvage_call():
+    # Com create_agent o orçamento só acaba após ≥1 tool call; o guard de histórico
+    # vazio continua no _salvage_report e é exercitado diretamente (BUD-07).
+    RECORDED.clear()
+    SALVAGE_VARIANTS.clear()
+    llm = _RecordingLLM(messages=iter([]))
+    report = audit._salvage_report(llm, "security",
+                                   [AIMessage(content=audit.BUDGET_EXHAUSTED_MARKER)])
 
-
-def test_exhausted_with_empty_transcript_makes_no_salvage_call(tmp_path):
-    dr = _run_investigator(tmp_path, _always_tool_calls(), steps=_TinyBudget)
-
-    assert _salvage_calls() == []                       # BUD-07
-    assert dr is None
+    assert report == ""
+    assert _salvage_calls() == [] and SALVAGE_VARIANTS == []
 
 
 def test_salvage_failure_propagates_for_isolation(tmp_path):
@@ -370,3 +375,38 @@ def test_agent_obeying_the_notice_needs_no_salvage(tmp_path):
     assert _salvage_calls() == []                       # EDGE-02
     assert _structurer_inputs()[0][-1] == ("user", "Relatório final após o aviso.")
     assert not audit.is_partial(dr)
+
+
+# --- G44: investigadores no create_agent (create-agent-migration) -------------------
+import warnings  # noqa: E402
+
+from langgraph.errors import GraphRecursionError  # noqa: E402
+
+
+def test_mig01_no_create_react_agent_deprecation_warning(tmp_path):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _run_investigator(tmp_path, iter([AIMessage(content="Relatório final.")]))
+
+    names = [type(w.message).__name__ for w in caught]
+    assert "LangGraphDeprecatedSinceV10" not in names
+    assert not any("create_react_agent" in str(w.message) for w in caught)
+
+
+def test_mig03_budget_stops_cleanly_without_recursion_error(tmp_path):
+    try:
+        dr = _run_investigator(tmp_path, _always_tool_calls())
+    except GraphRecursionError:  # pragma: no cover - é exatamente a regressão a evitar
+        raise AssertionError("o orçamento deve encerrar antes do recursion_limit")
+
+    assert len(_agent_calls(tmp_path)) == 6
+    assert audit.is_partial(dr)
+
+
+def test_bud07_empty_salvage_report_yields_no_structured_result(tmp_path):
+    # BUD-07, 2ª cláusula, pelo caminho real do agente: resgate sem texto → sem resultado.
+    dr = _run_investigator(tmp_path, _always_tool_calls(), salvage_empty=True)
+
+    assert len(_salvage_calls()) == 1
+    assert dr is None
+    assert _structurer_inputs() == []
