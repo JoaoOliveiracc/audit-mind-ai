@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/coverage-and-e2e/` (G39) — verified PASS (+ post-PASS hardening)
+- **Feature**: `.specs/features/dependency-floors/` (G40) — verified PASS
 - **Phase / Task**: complete
-- **Completed**: G25–G39, G41, G44–G46 (G40 partial)
+- **Completed**: G25–G41, G44–G46
 - **In-progress**: none
-- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G40 rest (requirements.txt single source, provider-extra floors), G42 (SARIF download, ChatDock); optional: tests read the repo-root `.env`; decide a coverage floor (measured 91%)
+- **Next step**: user commits; backlog: G42 (SARIF download, ChatDock), G47 (extras for vertexai/cohere/together/fireworks); optional: tests read repo-root `.env`; coverage floor (measured 91%)
 - **Blockers**: none
-- **Uncommitted files**: coverage-and-e2e (tests, fake_llm, pyproject, Makefile, ci.yml, .gitignore, docs, .specs/)
+- **Uncommitted files**: dependency-floors (pyproject.toml, requirements.txt deletion, tests/test_ci_config.py, DOCUMENTACAO.md, .specs/)
 - **Branch**: develop

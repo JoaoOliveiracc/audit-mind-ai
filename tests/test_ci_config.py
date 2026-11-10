@@ -139,3 +139,36 @@ def test_cov01_coverage_step_reports_without_threshold():
     assert re.search(r"^coverage:\n(?:\t@#.*\n)?\t.*pytest -q --cov=auditor --cov-report=term-missing$",
                      makefile, re.M)
     assert '"pytest-cov>=5"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+
+# --- DEP-01..03: mínimos dos provedores e fonte única (dependency-floors) -------------
+_PROVIDER_FLOORS = {"langchain-anthropic": "1.0", "langchain-openai": "1.0",
+                    "langchain-google-genai": "3.0", "langchain-groq": "1.0",
+                    "langchain-mistralai": "1.0", "langchain-ollama": "1.0",
+                    "langchain-deepseek": "1.0", "langchain-aws": "1.0"}
+
+
+def _pyproject() -> str:
+    return (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_dep01_provider_floors_are_langchain_1x():
+    specs = re.findall(r'"(langchain-[a-z-]+)>=([0-9.]+)"', _pyproject())
+    providers = [(name, floor) for name, floor in specs if name in _PROVIDER_FLOORS]
+    assert {name for name, _ in providers} == set(_PROVIDER_FLOORS)   # todos declarados
+    assert all(floor == _PROVIDER_FLOORS[name] for name, floor in providers), providers
+
+
+def test_dep02_all_providers_mirrors_individual_extras():
+    text = _pyproject()
+    block = re.search(r"^all-providers = \[\n(.*?)^\]", text, re.M | re.S).group(1)
+    for spec in re.findall(r'"([^"]+)"', block):
+        name = spec.split(">=")[0]
+        individual = re.findall(rf'^[a-z-]+ = \["({re.escape(name)}>=[^"]+)"\]$', text, re.M)
+        assert individual == [spec], (spec, individual)
+
+
+def test_dep03_single_source_no_requirements_txt():
+    assert not (ROOT / "requirements.txt").exists()
+    for rel in ("README.md", "Makefile", "docs/USAGE.md", ".github/workflows/ci.yml"):
+        assert "-r requirements.txt" not in (ROOT / rel).read_text(encoding="utf-8"), rel
