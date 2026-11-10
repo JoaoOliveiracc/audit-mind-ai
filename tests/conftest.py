@@ -45,7 +45,10 @@ def _isolated_data_dir(tmp_path_factory, monkeypatch):
 
 _REGISTRY_ENV = ("NPM_CONFIG_REGISTRY", "npm_config_registry", "YARN_NPM_REGISTRY_SERVER", "PIP_INDEX_URL",
                  "PIP_EXTRA_INDEX_URL", "PIP_FIND_LINKS", "PIP_CONFIG_FILE", "UV_INDEX_URL",
-                 "UV_EXTRA_INDEX_URL", "UV_INDEX", "UV_DEFAULT_INDEX", "UV_FIND_LINKS")
+                 "UV_EXTRA_INDEX_URL", "UV_INDEX", "UV_DEFAULT_INDEX", "UV_FIND_LINKS",
+                 # Runners do GitHub definem XDG_CONFIG_HOME=/home/runner/.config: sem removê-lo, o
+                 # pip.conf do usuário seria procurado fora do HOME falso dos testes.
+                 "XDG_CONFIG_HOME")
 
 
 @pytest.fixture(autouse=True)
