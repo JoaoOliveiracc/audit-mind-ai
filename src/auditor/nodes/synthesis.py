@@ -6,6 +6,7 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..llm import get_llm
+from ._messages import content_text
 from ..prompts.templates import SYNTHESIS_PROMPT, SYSTEM_PERSONA
 from ..state import SEVERITY_WEIGHT, AuditState, Severity
 
@@ -43,7 +44,7 @@ def synthesis_node(state: AuditState) -> dict:
     response = llm.invoke(
         [SystemMessage(content=SYSTEM_PERSONA), HumanMessage(content=prompt)]
     )
-    summary_text = response.content if isinstance(response.content, str) else str(response.content)
+    summary_text = content_text(response.content)
 
     return {
         "health_score": score,

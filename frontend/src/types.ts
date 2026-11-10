@@ -71,7 +71,8 @@ export interface PhaseEvent {
 export interface InvestigatorEvent {
   type: 'investigator'
   dimension: string
-  status: 'start' | 'done' | 'error' | 'empty'
+  /** `partial`: orçamento de passos esgotado; relatório resgatado (G32). */
+  status: 'start' | 'done' | 'partial' | 'error' | 'empty'
   index: number
   total: number
   findings_count?: number

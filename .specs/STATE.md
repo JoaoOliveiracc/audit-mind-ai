@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/api-hardening/` — verified PASS after fix loop 1 (previous: `search-code-scoping`, `audit-retention`, both verified)
-- **Phase / Task**: all three features complete
-- **Completed**: search-code-scoping (G25/G26/G30), audit-retention (G28/G29), api-hardening (G27/G31)
+- **Feature**: `.specs/features/investigator-budget/` — verified PASS after fix loop 1 (previous: search-code-scoping, audit-retention, api-hardening — all verified)
+- **Phase / Task**: complete
+- **Completed**: G25–G33 resolved across 4 features
 - **In-progress**: none
-- **Next step**: user commits; next backlog per DOCUMENTACAO.md §10.3 — (4) G32+G33, then G44 (create_agent migration), G37/G38 (CI, mypy)
+- **Next step**: user commits api-hardening + investigator-budget; next backlog per DOCUMENTACAO.md §10.3 — (5) G37+G38+G36 (CI, mypy), G44 (create_agent migration), G45/G46, G34/G35, G39–G42
 - **Blockers**: none
-- **Uncommitted files**: all three features (code, tests, docs, .specs/) — user runs git
+- **Uncommitted files**: api-hardening and investigator-budget (code, tests, docs, .specs/) — user runs git
 - **Branch**: develop
