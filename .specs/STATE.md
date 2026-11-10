@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/dedup-and-test-isolation/` (G41 + test isolation) — verified PASS after fix loop 1
+- **Feature**: `.specs/features/coverage-and-e2e/` (G39) — verified PASS (+ post-PASS hardening)
 - **Phase / Task**: complete
-- **Completed**: G25–G38, G41, G44–G46 (G40 partial)
+- **Completed**: G25–G39, G41, G44–G46 (G40 partial)
 - **In-progress**: none
-- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G39 (coverage: discovery/planning/clarify + e2e with fake LLM), G40 rest (requirements.txt, provider-extra floors), G42 (SARIF download, ChatDock); optional: tests still read the repo-root `.env` via `load_dotenv()` from cwd
+- **Next step**: user commits; backlog (DOCUMENTACAO.md §10.3): G40 rest (requirements.txt single source, provider-extra floors), G42 (SARIF download, ChatDock); optional: tests read the repo-root `.env`; decide a coverage floor (measured 91%)
 - **Blockers**: none
-- **Uncommitted files**: dedup-and-test-isolation (events.py, scoring.py, store/cli/nodes/renderer/runner, tests incl. conftest, docs, .specs/)
+- **Uncommitted files**: coverage-and-e2e (tests, fake_llm, pyproject, Makefile, ci.yml, .gitignore, docs, .specs/)
 - **Branch**: develop

@@ -41,6 +41,8 @@ jobs:
         run: mypy src
       - name: Testes (pytest)
         run: pytest -q
+      - name: Cobertura (só reporta)
+        run: pytest -q --cov=auditor --cov-report=term-missing
 
   frontend:
     name: frontend (Node 22)

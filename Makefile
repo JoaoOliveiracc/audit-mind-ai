@@ -1,4 +1,4 @@
-.PHONY: install hooks test lint typecheck ci frontend-ci run api frontend dev frontend-install clean
+.PHONY: install hooks test lint typecheck coverage ci frontend-ci run api frontend dev frontend-install clean
 
 install: hooks
 	python3 -m venv .venv && . .venv/bin/activate && pip install -U pip && pip install -e ".[dev,api]"
@@ -15,6 +15,10 @@ lint:
 
 typecheck:
 	. .venv/bin/activate && mypy src
+
+coverage:
+	@# Cobertura do backend (só reporta; sem mínimo por enquanto — G39)
+	. .venv/bin/activate && pytest -q --cov=auditor --cov-report=term-missing
 
 frontend-ci:
 	@# Mesmos passos do job "frontend" do CI (npm ci limpo + testes + tsc + build)

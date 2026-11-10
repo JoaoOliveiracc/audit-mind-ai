@@ -127,3 +127,15 @@ def test_ci06_make_gate_recipes_do_not_ignore_errors():
 def test_ci06_lint_rules_not_widened_implicitly():
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "extend-select" not in pyproject
+
+
+
+# --- COV-01: cobertura medida no CI e no Makefile, sem limite mínimo ------------------
+def test_cov01_coverage_step_reports_without_threshold():
+    step = next(s for s in JOBS["backend"]["steps"] if s.get("name") == "Cobertura (só reporta)")
+    assert step["run"].strip() == "pytest -q --cov=auditor --cov-report=term-missing"
+    assert "fail-under" not in _runs("backend")
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    assert re.search(r"^coverage:\n(?:\t@#.*\n)?\t.*pytest -q --cov=auditor --cov-report=term-missing$",
+                     makefile, re.M)
+    assert '"pytest-cov>=5"' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
