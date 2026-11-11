@@ -117,6 +117,9 @@ counted in the report; user-level/global registry settings (`~/.npmrc`, `~/.yarn
 `npm_config_registry`, `PIP_INDEX_URL`, `pip.conf`, …) are honored too. The web checkbox starts from
 the server's `AUDITOR_VULN_SCAN` (`GET /defaults`). The report always states the scan status (disabled / incomplete / clean /
 N vulnerable). Network errors never abort the audit.
+Vulnerable packages subtract at most **40 points** from the health score as a group (runtimes keep
+their full weight); the report and CLI show the share, e.g.
+`Pacotes vulneráveis (OSV): −40 pontos (5 pacote(s)) — teto de 40 aplicado; sem teto seriam −100`.
 
 ### Choosing the LLM provider
 

@@ -16,7 +16,7 @@ from rich.table import Table
 from . import __version__
 from .config import get_settings
 from .events import NODE_ICONS, NODE_LABELS
-from .scoring import severity_counts
+from .scoring import dependency_penalty_line, severity_counts
 from .graph import build_graph
 from .nodes.dependency_scan import resolve_vuln_scan
 from .vulnscan.status import scan_status
@@ -161,6 +161,7 @@ def _print_summary(state: dict) -> None:
     """Imprime o resumo final e os caminhos dos relatórios."""
     score = state.get("health_score", 0)
     findings = state.get("findings", [])
+    explanation = dependency_penalty_line(state.get("dependency_penalty"))
     color = "green" if score >= 75 else "yellow" if score >= 50 else "red"
 
     table = Table(title="Distribuição de Achados", show_header=True, header_style="bold")
@@ -174,7 +175,8 @@ def _print_summary(state: dict) -> None:
     console.print(
         Panel(
             f"Pontuação de saúde: [{color}]{score}/100[/{color}]\n"
-            f"Total de achados: {len(findings)}",
+            + (f"{escape(explanation)}\n" if explanation else "")
+            + f"Total de achados: {len(findings)}",
             title="✅ Auditoria concluída",
             border_style=color,
         )

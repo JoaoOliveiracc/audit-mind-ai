@@ -10,7 +10,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader
 
 from ..state import Severity
-from ..scoring import severity_counts
+from ..scoring import dependency_penalty_line, severity_counts
 from ..vulnscan.status import scan_status
 from .sarif import render_sarif
 
@@ -46,6 +46,7 @@ def build_context(state: dict[str, Any], generated_at: str) -> dict[str, Any]:
         "user_goal": state.get("user_goal", ""),
         "user_context": state.get("user_context", {}),
         "health_score": state.get("health_score", 0),
+        "dependency_penalty_line": dependency_penalty_line(state.get("dependency_penalty")),
         "executive_summary": state.get("executive_summary", ""),
         "stack_profile": profile,
         "plan": state.get("plan", {}),
@@ -69,6 +70,8 @@ def render_markdown(ctx: dict[str, Any]) -> str:
     a(f"- **Projeto:** `{ctx['project_path']}`")
     a(f"- **Gerado em:** {ctx['generated_at']}")
     a(f"- **Pontuação de saúde:** {ctx['health_score']}/100")
+    if ctx.get("dependency_penalty_line"):
+        a(f"- {ctx['dependency_penalty_line']}")
     a(f"- **Total de achados:** {ctx['total_findings']}")
     if ctx["user_goal"]:
         a(f"- **Objetivo informado:** {ctx['user_goal']}")

@@ -192,7 +192,7 @@ Objetivo do usuário: {user_goal}
 Contexto do usuário: {user_context}
 Perfil técnico: {stack_profile}
 
-Pontuação de saúde calculada: {health_score}/100
+Pontuação de saúde calculada: {health_score}/100{dependency_penalty_line}
 
 Resumos por dimensão:
 {dimension_summaries}

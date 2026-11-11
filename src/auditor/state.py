@@ -175,6 +175,9 @@ class AuditState(TypedDict, total=False):
 
     # Síntese / relatório
     health_score: int
+    # G49: penalidade do grupo de pacotes OSV gravada junto com a nota (applied/uncapped/packages);
+    # as explicações leem daqui — ausente em auditorias anteriores à G49.
+    dependency_penalty: dict[str, int]
     executive_summary: str
     report_markdown_path: str
     report_html_path: str

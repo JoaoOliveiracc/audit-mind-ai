@@ -220,3 +220,8 @@ def test_e2e05_vuln_scan_end_to_end(e2e, monkeypatch):
     assert final["adversarial"]["judged"] == 1                            # só o achado do LLM
     md = Path(final["report_markdown_path"]).read_text(encoding="utf-8")
     assert "1 pacote(s) vulnerável(is) entre 1 dependências consultadas (1 privada(s) não consultada(s))" in md
+    # E2E-06 (G49): 1 LLM high + 1 OSV high + 1 endoflife high = −60; o grupo OSV (20) fica abaixo do teto.
+    assert final["health_score"] == 40
+    assert final["dependency_penalty"] == {"applied": 20, "uncapped": 20, "packages": 1}
+    assert "- Pacotes vulneráveis (OSV): \u221220 pontos (1 pacote(s))\n" in md
+    assert "teto de 40" not in md

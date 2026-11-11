@@ -59,6 +59,9 @@
     <div class="num">{{ health_score }}<span style="font-size:20px;color:var(--muted)">/100</span></div>
     <div>
       <div style="font-weight:600">Pontuação de saúde</div>
+      {%- if dependency_penalty_line %}
+      <div class="meta">{{ dependency_penalty_line }}</div>
+      {%- endif %}
       <div class="meta">{{ total_findings }} achado(s) no total</div>
       <div class="badges">
         {% for sev in severity_order %}
