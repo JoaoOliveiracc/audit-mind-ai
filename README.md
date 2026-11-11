@@ -143,6 +143,14 @@ The active frontend lives in `frontend/` (Vite + React + Tailwind, with Vitest t
 Screens: new audit (with folder picker), live run (progress + clarifications +
 verification over SSE) and the report dashboard (findings by severity, filters, export).
 
+**Language:** the UI is in English by default and also ships in Brazilian Portuguese. It opens in
+Portuguese when the first language in the browser's preference list that the app supports is
+`pt*` (unsupported ones such as `es` are skipped), and the `EN / PT` button in the
+header switches languages on the fly (the choice is saved in the browser as `auditor.locale`).
+Messages are typed catalogs in `frontend/src/i18n/` (`en.ts` is the source of truth; a missing key
+in another catalog fails `tsc`). Content produced by the backend (LLM questions, findings and
+summary, scan status, API errors, MD/HTML reports) is still in Portuguese for now.
+
 ```bash
 # 1. Backend (terminal A) — default port 8020, which the Vite proxy targets
 auditor serve                             # http://127.0.0.1:8020
@@ -152,7 +160,7 @@ cd frontend && npm install && npm run dev # http://localhost:5173
 ```
 
 Or all at once: `make dev` (starts API + Vite frontend). The Vite dev server proxies
-`/audits`, `/providers`, `/health` and `/fs` to the backend on **:8020** (same origin — no
+`/audits`, `/providers`, `/defaults`, `/health` and `/fs` to the backend on **:8020** (same origin — no
 CORS setup needed; see `frontend/vite.config.ts`). Production build: `vite build` → `frontend/dist/`.
 
 ## 🧪 Tests
