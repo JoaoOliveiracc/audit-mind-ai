@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 
+import { useI18n } from '../i18n/I18nProvider'
 import type { CreateAuditRequest, ProviderInfo } from '../types'
 import FolderPicker from './FolderPicker'
 
@@ -13,6 +14,7 @@ interface Props {
 
 /** Formulário inicial: caminho do projeto, objetivo e provedor/modelo. */
 export default function StartForm({ providers, busy, onStart, vulnScanDefault = false }: Props) {
+  const { t } = useI18n()
   const [path, setPath] = useState('')
   const [goal, setGoal] = useState('')
   const [provider, setProvider] = useState('')
@@ -31,7 +33,7 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
   // o navegador não tem como ver. Exigimos absoluto pra nunca ser ambíguo.
   const isAbsolute = (p: string) => p.startsWith('/') || p.startsWith('~')
   const trimmedPath = path.trim()
-  const pathError = trimmedPath && !isAbsolute(trimmedPath) ? 'Use o caminho completo, começando com / (ou ~).' : null
+  const pathError = trimmedPath && !isAbsolute(trimmedPath) ? t.start.pathError : null
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -50,13 +52,13 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
     <form onSubmit={submit} className="card space-y-4">
       <div>
         <label htmlFor="path" className="eyebrow mb-1 block">
-          Caminho do projeto
+          {t.start.pathLabel}
         </label>
         <div className="flex gap-2">
           <input
             id="path"
             className={`field font-mono ${pathError ? '!border-sev-critical' : ''}`}
-            placeholder="/caminho/do/projeto"
+            placeholder={t.start.pathPlaceholder}
             value={path}
             onChange={(e) => setPath(e.target.value)}
             aria-invalid={!!pathError}
@@ -64,7 +66,7 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
             autoFocus
           />
           <button type="button" className="btn shrink-0" onClick={() => setPickerOpen(true)}>
-            Procurar…
+            {t.start.browse}
           </button>
         </div>
         {pickerOpen && (
@@ -83,20 +85,21 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
           </p>
         ) : (
           <p id="path-hint" className="mt-1 text-xs text-[color:var(--dim)]">
-            Caminho completo no computador onde roda o Auditor-IA (ex.:{' '}
-            <span className="font-mono">/Users/voce/projetos/meu-app</span>).
+            {t.start.pathHintBefore}
+            <span className="font-mono">{t.start.pathHintExample}</span>
+            {t.start.pathHintAfter}
           </p>
         )}
       </div>
 
       <div>
         <label htmlFor="goal" className="eyebrow mb-1 block">
-          Objetivo da auditoria <span className="normal-case tracking-normal">(opcional)</span>
+          {t.start.goalLabel} <span className="normal-case tracking-normal">{t.start.optional}</span>
         </label>
         <input
           id="goal"
           className="field"
-          placeholder="Ex.: preparando para produção, foco em segurança"
+          placeholder={t.start.goalPlaceholder}
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
         />
@@ -112,7 +115,7 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
             setVulnScan(e.target.checked)
           }}
         />
-        <span>Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)</span>
+        <span>{t.start.vulnScan}</span>
       </label>
 
       <button
@@ -120,14 +123,14 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
         className="eyebrow underline-offset-4 hover:text-[color:var(--stamp)] hover:underline"
         onClick={() => setShowAdvanced((v) => !v)}
       >
-        {showAdvanced ? '− opções avançadas' : '+ opções avançadas'}
+        {showAdvanced ? t.start.advancedHide : t.start.advancedShow}
       </button>
 
       {showAdvanced && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="provider" className="eyebrow mb-1 block">
-              Provedor
+              {t.start.provider}
             </label>
             <select
               id="provider"
@@ -135,7 +138,7 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
             >
-              <option value="">padrão do servidor (.env)</option>
+              <option value="">{t.start.providerDefault}</option>
               {providers.map((p) => (
                 <option key={p.provider} value={p.provider}>
                   {p.provider}
@@ -145,12 +148,12 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
           </div>
           <div>
             <label htmlFor="model" className="eyebrow mb-1 block">
-              Modelo
+              {t.start.model}
             </label>
             <input
               id="model"
               className="field font-mono"
-              placeholder="padrão do .env"
+              placeholder={t.start.modelPlaceholder}
               value={model}
               onChange={(e) => setModel(e.target.value)}
             />
@@ -161,15 +164,15 @@ export default function StartForm({ providers, busy, onStart, vulnScanDefault = 
               checked={skipQuestions}
               onChange={(e) => setSkipQuestions(e.target.checked)}
             />
-            Pular perguntas de esclarecimento (modo não interativo)
+            {t.start.skipQuestions}
           </label>
         </div>
       )}
 
       <div className="flex items-center justify-between">
-        <span className="eyebrow">provedor/modelo do .env · ajuste em opções avançadas</span>
+        <span className="eyebrow">{t.start.footerHint}</span>
         <button type="submit" className="btn btn-primary" disabled={busy || !trimmedPath || !!pathError}>
-          Iniciar auditoria
+          {t.start.submit}
         </button>
       </div>
     </form>

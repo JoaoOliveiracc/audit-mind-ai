@@ -4,6 +4,7 @@ import type {
   CompletedEvent,
   FindingsPayload,
   InvestigatorEvent,
+  Notice,
   PhaseEvent,
   StackProfile,
   VerificationEvent,
@@ -35,7 +36,7 @@ export interface AuditUIState {
   clarifyAnswered: boolean
   completed: CompletedEvent | null
   results: FindingsPayload | null
-  error: string | null
+  error: Notice | null
 }
 
 export const initialState: AuditUIState = {
@@ -64,7 +65,7 @@ export type Action =
   | { type: 'CLARIFY_SUBMITTED' }
   | { type: 'COMPLETED'; event: CompletedEvent }
   | { type: 'RESULTS'; payload: FindingsPayload }
-  | { type: 'ERROR'; message: string }
+  | { type: 'ERROR'; message: Notice }
   | { type: 'RESET' }
 
 export function auditReducer(state: AuditUIState, action: Action): AuditUIState {

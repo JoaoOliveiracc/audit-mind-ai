@@ -6,8 +6,8 @@ import ChatDock from './ChatDock'
 
 vi.mock('../api/client', () => ({ chatAudit: vi.fn() }))
 
-const input = () => screen.getByRole('textbox', { name: 'Pergunta sobre o resultado' })
-const send = () => screen.getByRole('button', { name: 'Enviar' })
+const input = () => screen.getByRole('textbox', { name: 'Question about the result' })
+const send = () => screen.getByRole('button', { name: 'Send' })
 
 async function ask(text: string) {
   fireEvent.change(input(), { target: { value: text } })

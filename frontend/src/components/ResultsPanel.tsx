@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import Markdown from 'react-markdown'
 
 import { reportUrl } from '../api/client'
-import { SEVERITY_LABEL, SEVERITY_ORDER } from '../state/score'
+import { useI18n } from '../i18n/I18nProvider'
+import { SEVERITY_ORDER } from '../state/score'
 import type { FindingsPayload } from '../types'
 import FindingCard from './FindingCard'
 import HealthStamp from './HealthStamp'
@@ -15,6 +16,7 @@ interface Props {
 
 /** Painel final: carimbo do score, resumo executivo, filtros e achados. */
 export default function ResultsPanel({ auditId, payload, counts }: Props) {
+  const { t } = useI18n()
   const results = payload
   const [sevFilter, setSevFilter] = useState<string | null>(null)
   const [dimFilter, setDimFilter] = useState<string | null>(null)
@@ -34,9 +36,9 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
       <div className="card flex flex-col items-start gap-5 sm:flex-row sm:items-center">
         <HealthStamp score={results.health_score ?? 0} />
         <div className="min-w-0 flex-1">
-          <p className="eyebrow mb-2">Parecer do auditor</p>
+          <p className="eyebrow mb-2">{t.results.opinion}</p>
           <div className="space-y-1.5 text-sm [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_code]:font-mono [&_code]:text-xs [&_li]:ml-4 [&_li]:list-disc [&_strong]:text-[color:var(--stamp)]">
-            <Markdown>{results.executive_summary || '_(resumo não gerado)_'}</Markdown>
+            <Markdown>{results.executive_summary || t.results.noSummary}</Markdown>
           </div>
         </div>
       </div>
@@ -44,10 +46,10 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
       {results.dependency_scan_status && (
         <div
           role="status"
-          aria-label="Dependências"
+          aria-label={t.results.dependencies}
           className={`card text-xs ${results.dependency_scan_status.incomplete ? '!border-sev-medium' : ''}`}
         >
-          <span className="eyebrow mr-1.5">Dependências</span>
+          <span className="eyebrow mr-1.5">{t.results.dependencies}</span>
           <span className={results.dependency_scan_status.incomplete ? 'text-sev-medium' : ''}>
             {results.dependency_scan_status.headline}
           </span>
@@ -67,22 +69,22 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
         <div className="card flex flex-wrap gap-x-6 gap-y-1 text-xs">
           {results.verification && (
             <span>
-              <span className="eyebrow mr-1.5">Evidência</span>
+              <span className="eyebrow mr-1.5">{t.results.evidence}</span>
               <span className="text-emerald-400">{results.verification.verified} ✓</span>
               {' · '}
-              {results.verification.unverified} sem evidência
+              {t.results.withoutEvidence(results.verification.unverified)}
               {' · '}
-              <span className="text-sev-critical">{results.verification.rejected} descartados</span>
+              <span className="text-sev-critical">{t.results.discarded(results.verification.rejected)}</span>
             </span>
           )}
           {results.adversarial?.enabled && (
             <span>
-              <span className="eyebrow mr-1.5">Contraprova</span>
-              <span className="text-emerald-400">{results.adversarial.confirmed} confirmados</span>
+              <span className="eyebrow mr-1.5">{t.results.adversarial}</span>
+              <span className="text-emerald-400">{t.results.confirmed(results.adversarial.confirmed)}</span>
               {' · '}
-              {results.adversarial.uncertain} incertos
+              {t.results.uncertain(results.adversarial.uncertain)}
               {' · '}
-              <span className="text-sev-critical">{results.adversarial.refuted} refutados</span>
+              <span className="text-sev-critical">{t.results.refuted(results.adversarial.refuted)}</span>
             </span>
           )}
         </div>
@@ -90,7 +92,7 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="eyebrow mr-1">
-          {results.findings.length} achado{results.findings.length === 1 ? '' : 's'}
+          {t.common.findings(results.findings.length)}
         </span>
         {SEVERITY_ORDER.map((sev) => {
           const n = counts[sev] ?? 0
@@ -104,7 +106,7 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
               onClick={() => setSevFilter(active ? null : sev)}
               aria-pressed={active}
             >
-              {SEVERITY_LABEL[sev]} · {n}
+              {t.common.severity[sev]} · {n}
             </button>
           )
         })}
@@ -113,9 +115,9 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
             className="field !w-auto !py-1 text-xs"
             value={dimFilter ?? ''}
             onChange={(e) => setDimFilter(e.target.value || null)}
-            aria-label="Filtrar por dimensão"
+            aria-label={t.results.filterByDimension}
           >
-            <option value="">todas as dimensões</option>
+            <option value="">{t.results.allDimensions}</option>
             {dims.map((d) => (
               <option key={d} value={d}>
                 {d}
@@ -131,7 +133,7 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
         ))}
         {filtered.length === 0 && (
           <p className="card text-sm text-[color:var(--dim)]">
-            Nenhum achado com esses filtros.
+            {t.results.noMatches}
           </p>
         )}
       </div>
@@ -143,13 +145,13 @@ export default function ResultsPanel({ auditId, payload, counts }: Props) {
           target="_blank"
           rel="noreferrer"
         >
-          Abrir relatório HTML
+          {t.results.openHtml}
         </a>
-        <a className="btn" href={reportUrl(auditId, 'md')} download="auditoria.md">
-          Baixar Markdown
+        <a className="btn" href={reportUrl(auditId, 'md')} download={t.results.mdFilename}>
+          {t.results.downloadMd}
         </a>
-        <a className="btn" href={reportUrl(auditId, 'sarif')} download="auditoria.sarif">
-          Baixar SARIF
+        <a className="btn" href={reportUrl(auditId, 'sarif')} download={t.results.sarifFilename}>
+          {t.results.downloadSarif}
         </a>
       </div>
     </section>

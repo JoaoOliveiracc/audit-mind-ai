@@ -9,7 +9,7 @@ import type {
 
 async function jsonOrThrow(res: Response): Promise<any> {
   if (!res.ok) {
-    let detail = res.statusText
+    let detail = res.statusText || `HTTP ${res.status}`  // HTTP/2 não tem statusText
     try {
       const body = await res.json()
       // 422 do FastAPI: `detail` é uma lista de erros de validação.

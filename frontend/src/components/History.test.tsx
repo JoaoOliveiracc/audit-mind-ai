@@ -24,18 +24,18 @@ describe('History — exclusão', () => {
   it('UI-01: clicar em excluir não abre a auditoria e pede confirmação', () => {
     const { onOpen, onDelete } = setup()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir auditoria de /proj/alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete audit of /proj/alpha' }))
 
     expect(onOpen).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Confirmar exclusão' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm deletion' })).toBeInTheDocument()
   })
 
   it('UI-02: só a confirmação chama onDelete com a auditoria', () => {
     const { onOpen, onDelete } = setup()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir auditoria de /proj/alpha' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete audit of /proj/alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
 
     expect(onDelete).toHaveBeenCalledTimes(1)
     expect(onDelete).toHaveBeenCalledWith(audit)
@@ -45,13 +45,13 @@ describe('History — exclusão', () => {
   it('UI-02: cancelar volta ao estado inicial sem excluir', () => {
     const { onDelete } = setup()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Excluir auditoria de /proj/alpha' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete audit of /proj/alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(onDelete).not.toHaveBeenCalled()
-    expect(screen.queryByRole('button', { name: 'Confirmar exclusão' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirm deletion' })).not.toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Excluir auditoria de /proj/alpha' }),
+      screen.getByRole('button', { name: 'Delete audit of /proj/alpha' }),
     ).toBeInTheDocument()
   })
 
@@ -73,16 +73,16 @@ describe('History — retomada', () => {
   it('UI-01: interrompida mostra o rótulo e o botão Retomar; outros status não', () => {
     setup([audit, interrupted])
 
-    expect(screen.getByText('interrompida')).toBeInTheDocument()
-    const buttons = screen.getAllByRole('button', { name: /^Retomar auditoria de / })
+    expect(screen.getByText('interrupted')).toBeInTheDocument()
+    const buttons = screen.getAllByRole('button', { name: /^Resume audit of / })
     expect(buttons).toHaveLength(1)
-    expect(buttons[0]).toHaveAccessibleName('Retomar auditoria de /proj/beta')
+    expect(buttons[0]).toHaveAccessibleName('Resume audit of /proj/beta')
   })
 
   it('UI-02: Retomar chama onResume com a auditoria e não abre', () => {
     const { onOpen, onResume, onDelete } = setup([interrupted])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Retomar auditoria de /proj/beta' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resume audit of /proj/beta' }))
 
     expect(onResume).toHaveBeenCalledTimes(1)
     expect(onResume).toHaveBeenCalledWith(interrupted)
@@ -96,7 +96,7 @@ describe('History — Retomar só para interrompidas (UI-01)', () => {
     'status %s não mostra Retomar',
     (status) => {
       setup([{ ...audit, status }])
-      expect(screen.queryByRole('button', { name: /^Retomar auditoria de / })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Resume audit of / })).not.toBeInTheDocument()
     },
   )
 })

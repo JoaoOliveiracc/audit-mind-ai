@@ -40,3 +40,10 @@ describe('reportUrl', () => {
     expect(reportUrl('a1', 'sarif')).toBe('/audits/a1/report?format=sarif')
   })
 })
+
+describe('jsonOrThrow — corpo não-JSON sem statusText (HTTP/2)', () => {
+  it('mensagem cai para "HTTP <status>" em vez de vazia', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 502 })))
+    await expect(chatAudit('a1', 'Q?', [])).rejects.toThrow('HTTP 502')
+  })
+})

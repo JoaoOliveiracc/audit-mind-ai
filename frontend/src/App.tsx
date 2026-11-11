@@ -14,11 +14,13 @@ import {
 import { connectAuditStream, type AuditStream } from './api/sse'
 import ChatDock from './components/ChatDock'
 import History from './components/History'
+import LanguageToggle from './components/LanguageToggle'
 import ResultsPanel from './components/ResultsPanel'
 import StartForm from './components/StartForm'
 import Timeline from './components/Timeline'
+import { errorNotice, noticeText, useI18n } from './i18n/I18nProvider'
 import { auditReducer, initialState } from './state/auditReducer'
-import type { AuditSummary, CreateAuditRequest, Finding, ProviderInfo } from './types'
+import type { AuditSummary, CreateAuditRequest, Finding, Notice, ProviderInfo } from './types'
 
 /** Conta achados por severidade (fallback quando o resumo não traz `counts`). */
 function countBySeverity(findings: Finding[]): Record<string, number> {
@@ -28,11 +30,13 @@ function countBySeverity(findings: Finding[]): Record<string, number> {
 }
 
 export default function App() {
+  const { t } = useI18n()
   const [state, dispatch] = useReducer(auditReducer, initialState)
   const [providers, setProviders] = useState<ProviderInfo[]>([])
   const [vulnScanDefault, setVulnScanDefault] = useState(false)
   const [history, setHistory] = useState<AuditSummary[]>([])
-  const [startError, setStartError] = useState<string | null>(null)
+  // Guardado como aviso (não texto) para acompanhar a troca de idioma (LOC-03).
+  const [startError, setStartError] = useState<Notice | null>(null)
   const [auditId, setAuditId] = useState<string | null>(null)
   const [projectPath, setProjectPath] = useState<string | null>(null)
   /** Auditoria com retomada em voo (desabilita o botão; evita 409 de clique duplo). */
@@ -72,7 +76,7 @@ export default function App() {
         dispatch({ type: 'COMPLETED', event: e })
         getFindings(id)
           .then((p) => dispatch({ type: 'RESULTS', payload: p }))
-          .catch((err) => dispatch({ type: 'ERROR', message: String(err) }))
+          .catch((err) => dispatch({ type: 'ERROR', message: errorNotice(err) }))
       },
       onError: (message) => {
         streamRef.current?.close()
@@ -90,7 +94,7 @@ export default function App() {
       dispatch({ type: 'START' })
       openStream(summary.id)
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : String(err))
+      setStartError(errorNotice(err))
     }
   }
 
@@ -100,7 +104,7 @@ export default function App() {
       await submitAnswers(auditId, answers)
       dispatch({ type: 'CLARIFY_SUBMITTED' })
     } catch (err) {
-      dispatch({ type: 'ERROR', message: err instanceof Error ? err.message : String(err) })
+      dispatch({ type: 'ERROR', message: errorNotice(err) })
     }
   }
 
@@ -119,7 +123,7 @@ export default function App() {
     try {
       await deleteAudit(summary.id)
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : String(err))
+      setStartError(errorNotice(err))
     }
     refreshHistory()
   }
@@ -137,7 +141,7 @@ export default function App() {
       dispatch({ type: 'START' })
       openStream(a.id)
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : String(err))
+      setStartError(errorNotice(err))
       refreshHistory()
     } finally {
       setResumingId(null)
@@ -152,11 +156,11 @@ export default function App() {
     const a = await getAudit(summary.id).catch(() => summary)
     // Sem runner vivo, o stream daria 404 ("Conexão perdida"): orienta em vez de conectar.
     if (a.status === 'interrupted') {
-      setStartError('Auditoria interrompida — use Retomar para continuar do último checkpoint.')
+      setStartError({ code: 'audit_interrupted' })
       return
     }
     if (a.status === 'error') {
-      setStartError(a.error ? `Auditoria falhou: ${a.error}` : 'Auditoria falhou.')
+      setStartError({ code: 'audit_failed', detail: a.error })
       return
     }
     setAuditId(a.id)
@@ -171,7 +175,7 @@ export default function App() {
         })
         dispatch({ type: 'RESULTS', payload })
       } catch (err) {
-        setStartError(err instanceof Error ? err.message : String(err))
+        setStartError(errorNotice(err))
       }
     } else {
       // running / waiting_input: o runner (vivo) faz replay do log acumulado.
@@ -185,22 +189,23 @@ export default function App() {
       <header className="flex items-baseline justify-between border-b border-[color:var(--line)] pb-4">
         <div>
           <h1 className="font-mono text-lg font-bold tracking-tight">
-            Auditor-IA<span className="text-[color:var(--stamp)]">_</span>
+            Audit Mind AI<span className="text-[color:var(--stamp)]">_</span>
           </h1>
-          <p className="eyebrow mt-1">dossiê de auditoria · agente LangGraph</p>
+          <p className="eyebrow mt-1">{t.app.tagline}</p>
         </div>
-        {projectPath && (
-          <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
+          {projectPath && (
             <span className="hidden font-mono text-xs text-[color:var(--dim)] sm:block">
               {projectPath}
             </span>
-            {!running && state.status !== 'idle' && (
-              <button type="button" className="btn !text-xs" onClick={handleReset}>
-                Nova auditoria
-              </button>
-            )}
-          </div>
-        )}
+          )}
+          {projectPath && !running && state.status !== 'idle' && (
+            <button type="button" className="btn !text-xs" onClick={handleReset}>
+              {t.app.newAudit}
+            </button>
+          )}
+          <LanguageToggle />
+        </div>
       </header>
 
       <main className="flex-1 space-y-6">
@@ -209,7 +214,7 @@ export default function App() {
             <StartForm providers={providers} busy={false} onStart={handleStart} vulnScanDefault={vulnScanDefault} />
             {startError && (
               <p className="card break-words text-sm text-sev-critical" role="alert">
-                {startError}
+                {noticeText(t, startError)}
               </p>
             )}
             <History audits={history} onOpen={handleOpenAudit} onDelete={handleDeleteAudit}
