@@ -50,7 +50,9 @@ class ParseResult:
 
 # Achados determinísticos (G48): factuais, citam lockfiles — não vão ao juiz adversarial e o
 # verify aceita arquivos até MAX_LOCKFILE_BYTES para eles.
-DETERMINISTIC_SOURCES = frozenset({"osv", "endoflife"})
+OSV_SOURCE = "osv"                 # pacote vulnerável (OSV.dev) — também o grupo com teto do G49
+EOL_SOURCE = "endoflife"           # runtime (endoflife.date)
+DETERMINISTIC_SOURCES = frozenset({OSV_SOURCE, EOL_SOURCE})
 MAX_LOCKFILE_BYTES = 50 * 1024 * 1024
 
 

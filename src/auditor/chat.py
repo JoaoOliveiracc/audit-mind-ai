@@ -12,6 +12,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
 from .prompts.templates import CHAT_SYSTEM
+from .scoring import dependency_penalty_line
 from .state import Severity
 
 __all__ = ["CHAT_SYSTEM", "build_chat_messages", "build_report_context"]
@@ -31,8 +32,11 @@ def _neutralize(text: str) -> str:
 
 def build_report_context(values: dict[str, Any]) -> str:
     """Texto do relatório (sem delimitadores), com teto de tamanho; achados mais graves primeiro."""
-    lines = [
-        f"Pontuação de saúde: {values.get('health_score', '—')}/100",
+    lines = [f"Pontuação de saúde: {values.get('health_score', '—')}/100"]
+    explanation = dependency_penalty_line(values.get("dependency_penalty"))
+    if explanation:
+        lines.append(explanation)
+    lines += [
         "Resumo executivo:",
         str(values.get("executive_summary") or "(não gerado)"),
         f"Perfil técnico: {json.dumps(values.get('stack_profile') or {}, ensure_ascii=False)}",
