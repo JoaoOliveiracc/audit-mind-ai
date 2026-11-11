@@ -14,7 +14,7 @@ from ..state import Severity
 from .lockfiles import composer, npm  # noqa: F401  (registram seus parsers)
 from .lockfiles import parser_for
 from .lockfiles import python as py_lockfiles
-from .models import MAX_LOCKFILE_BYTES, Cycle, Dependency, ParseResult, RuntimeDecl
+from .models import EOL_SOURCE, MAX_LOCKFILE_BYTES, OSV_SOURCE, Cycle, Dependency, ParseResult, RuntimeDecl
 from .runtime import RUNTIME_LABELS, Evaluation, detect_in_file, evaluate, is_runtime_file
 from .sources.osv import Advisory, DepKey, dep_key
 from .versions import version_key
@@ -102,7 +102,7 @@ def _package_finding(occurrences: list[Dependency], advisories: list[Advisory], 
                    f"(fonte: OSV.dev):\n" + "\n".join(items))
     if others:
         description += "\nTambém presente em: " + ", ".join(others)
-    return {"dimension": "dependencies", "source": "osv",
+    return {"dimension": "dependencies", "source": OSV_SOURCE,
             "title": f"{first.name}@{first.version} com {len(advisories)} vulnerabilidade(s) conhecida(s)",
             "severity": severity, "description": description, "recommendation": recommendation,
             "file": first.file, "line": first.line,
@@ -120,7 +120,7 @@ def _runtime_finding(decl: RuntimeDecl, result: Evaluation, cycles: list[Cycle])
         target = f"{label} {supported.name} ({supported.latest})" if supported and supported.latest \
             else "um ciclo suportado"
         recommendation, title = f"Atualize para {target}.", "sem suporte"
-    return {"dimension": "dependencies", "source": "endoflife",
+    return {"dimension": "dependencies", "source": EOL_SOURCE,
             "title": f"Runtime {label} {decl.value}: {title}",
             "severity": result.severity, "description": result.message + " (fonte: endoflife.date)",
             "recommendation": recommendation,

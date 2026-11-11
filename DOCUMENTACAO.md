@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G48**; G25–G48 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G49**; G25–G49 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -333,12 +333,21 @@ um arquivo chamado `build`/`env`/`bin`/`out` é pesquisado normalmente.
 - `Finding` — `dimension, title, severity, description, recommendation, file, line, evidence, confidence, verified, judged`.
 - `Severity` + `SEVERITY_WEIGHT` — pesos usados na pontuação de saúde (critical=40, high=20, medium=8, low=3, info=0).
 
-### Pontuação de saúde (`auditor/nodes/synthesis.py`)
+### Pontuação de saúde (`auditor/scoring.py`, chamada pelo `synthesis`)
 
 ```python
-penalty = Σ SEVERITY_WEIGHT[severity]  (por achado)
+osv     = Σ SEVERITY_WEIGHT[severity]  (achados source == "osv": pacotes vulneráveis)
+penalty = Σ SEVERITY_WEIGHT[severity]  (demais achados: LLM e runtimes) + min(40, osv)
 health_score = max(0, 100 - min(100, penalty))
 ```
+
+O grupo de pacotes vulneráveis (G49) tira **no máximo 40 pontos** (`DEPENDENCY_PENALTY_CAP`), para
+que a varredura de dependências não zere a nota por si só; runtimes (`endoflife`) e achados do LLM
+pesam inteiros. Só o scanner define `source` (o schema do LLM não tem esse campo). O `synthesis`
+grava o detalhamento em `dependency_penalty` e o relatório MD/HTML, a CLI, o prompt da síntese e o
+chat mostram `Pacotes vulneráveis (OSV): −N pontos (K pacote(s))` (+ `— teto de 40 aplicado; sem teto
+seriam −M` acima do teto). Sem achados OSV a nota e as saídas são as de antes; auditorias anteriores
+à G49 mantêm a nota gravada, sem a linha.
 
 ### LLM e config
 
@@ -497,6 +506,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G47~~ ✅ | `google_vertexai`, `cohere`, `together` e `fireworks` aparecem em `config.PROVIDER_PACKAGE` (e no `auditor providers`), mas não têm extra no `pyproject` — sem caminho de instalação nem mínimo de versão. | 🟢 Baixo | Análise (Verifier de `dependency-floors`). | ✅ **Resolvido** — extras `vertexai` (`>=3.0`), `cohere` (`>=0.5`), `together` (`>=0.4`) e `fireworks` (`>=1.0`): 1ª versão que **declara** `langchain-core>=1.0` nos metadados do PyPI. Teste garante que todo provedor anunciado tem caminho de instalação. Spec: `.specs/features/provider-extras/`. |
 | ~~G42~~ ✅ | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ **Resolvido** — botão "Baixar SARIF"; ChatDock funcional sobre `POST /audits/{id}/chat` (só o relatório salvo, delimitado como dado não confiável; histórico só na tela; limites de pergunta/histórico/contexto). Spec: `.specs/features/report-chat-and-sarif/`. Os demais itens da linha já tinham sido resolvidos: auditoria zumbi no histórico (G31/G46) e o comentário do `vite.config.ts` (na análise inicial). |
 | ~~G48~~ ✅ | O agente não consultava nenhuma base de vulnerabilidades (o LLM julgava "dependências vulneráveis" de memória) e `.lock` era tratado como binário — `composer.lock`, `yarn.lock`, `poetry.lock`, `uv.lock` nunca eram lidos; runtime sem suporte não era detectado. | 🟠 Alto | Análise. | ✅ **Resolvido** — varredura determinística opt-in (`AUDITOR_VULN_SCAN`, `--vuln-scan`, `vuln_scan` na API/web): lockfiles npm/yarn/pnpm, Composer e Python → OSV.dev (um achado por pacote@versão, CVE/GHSA, versão corrigida; dev → info); runtime Node/PHP/Python → endoflife.date (EOL / abaixo do último patch); privados nunca consultados; status explícito no relatório; `.lock` legível. Decisão AD-003. Spec: `.specs/features/vuln-scan/`. |
+| ~~G49~~ ✅ | Com a varredura (G48) ligada, cada pacote vulnerável pesava como um achado de código: cinco pacotes transitivos `high` já zeravam a pontuação, que deixava de refletir a auditoria. | 🟡 Médio | Code review da G48. | ✅ **Resolvido** — o grupo de pacotes OSV tira no máximo 40 pontos (runtimes e LLM com peso cheio); detalhamento gravado no estado e exibido no relatório, CLI, síntese e chat. Spec: `.specs/features/dependency-score-cap/`. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
 (disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → ~~(5) G37+G38+G36 (higiene/CI)~~ ✅ → restante.
@@ -523,8 +533,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — concluídas (G25–G48 — todos resolvidos)
-G25–G48 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — concluídas (G25–G49 — todos resolvidos)
+G25–G49 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

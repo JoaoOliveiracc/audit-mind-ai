@@ -168,6 +168,14 @@ with 20 000 files in `node_modules`, `**/*` went from ~2.4 s to ~7 ms per call (
 (`critical=40, high=20, medium=8, low=3, info=0`), with a floor of 0. It is a
 heuristic indicator for executive reading, not a formal metric.
 
+Vulnerable-package findings (`source == "osv"`, set only by the dependency scanner) are summed
+as a group capped at `DEPENDENCY_PENALTY_CAP = 40` (G49), so enabling the scan cannot zero the
+score on its own; runtime (`endoflife`) and LLM findings keep their full weight. `synthesis`
+stores the breakdown (`dependency_penalty`: applied/uncapped/packages) next to `health_score`, and
+the Markdown/HTML report, CLI summary, synthesis prompt and report chat render the line
+`Pacotes vulneráveis (OSV): −N pontos (K pacote(s))` from that stored value (never recomputed, so
+audits finished before G49 show no line).
+
 ## 9. Data flow (summary)
 
 ```
@@ -180,6 +188,6 @@ project_path (+ provider, model, user_goal)
   → findings[] (+osv/endoflife) + dependency_scan   (dependency_scan, opt-in)
   → findings[] (filtered) + verification   (verify)
   → findings[] (filtered) + adversarial    (adversarial)
-  → health_score + executive_summary   (synthesis)
+  → health_score + dependency_penalty + executive_summary   (synthesis)
   → report_{markdown,html,sarif}_path  (report)
 ```
