@@ -171,3 +171,9 @@ export interface BrowseResponse {
   parent: string | null
   entries: BrowseEntry[]
 }
+
+/** Aviso exibido na UI (G50): texto do servidor como veio, ou um código traduzido no cliente. */
+export type Notice =
+  | string
+  | { code: 'connection_lost' | 'audit_interrupted' | 'network_error' }
+  | { code: 'audit_failed'; detail?: string | null }

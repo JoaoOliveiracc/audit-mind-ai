@@ -4,6 +4,7 @@ import type {
   CompletedEvent,
   ErrorEvent,
   InvestigatorEvent,
+  Notice,
   PhaseEvent,
   VerificationEvent,
 } from '../types'
@@ -15,7 +16,8 @@ export interface StreamHandlers {
   onAdversarial: (e: AdversarialEvent) => void
   onClarification: (e: ClarificationEvent) => void
   onCompleted: (e: CompletedEvent) => void
-  onError: (message: string) => void
+  /** Mensagem do servidor (texto) ou código do cliente (traduzido na UI — G50). */
+  onError: (notice: Notice) => void
 }
 
 export interface AuditStream {
@@ -50,7 +52,7 @@ export function connectAuditStream(auditId: string, h: StreamHandlers): AuditStr
   es.onerror = () => {
     // Conexão perdida com o backend (EventSource tenta reconectar sozinho).
     if (es.readyState === EventSource.CLOSED) {
-      h.onError('Conexão com o servidor perdida.')
+      h.onError({ code: 'connection_lost' })
     }
   }
 

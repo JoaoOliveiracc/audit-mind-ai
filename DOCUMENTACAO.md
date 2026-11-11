@@ -14,7 +14,7 @@
 > A versão anterior descrevia o protótipo single-file `app.py`, hoje **removido** (inclusive do
 > histórico do git) — ver [§12 Legado](#12-legado-appy-removido). Os gaps G1–G24 estão
 > **resolvidos** (exceto a rotação da chave — G14 — e G20, aceito para uso local). A análise
-> técnica de **2026-11-10** levantou novos gaps **G25–G49**; G25–G49 já foram
+> técnica de **2026-11-10** levantou novos gaps **G25–G50**; G25–G50 já foram
 > corrigidos — ver [§10.3](#103-análise-técnica-de-2026-11-10-g25g43).
 
 ---
@@ -263,6 +263,14 @@ Frontend **ativo** em `frontend/` (Vite + React + Tailwind, com testes Vitest). 
 auditoria (com folder picker), execução ao vivo (progresso + esclarecimentos + verificação
 por SSE) e dashboard do relatório (achados por severidade, filtros, export).
 
+**Idioma (G50):** a interface é em inglês por padrão e também em português do Brasil. Abre em
+português quando a 1ª língua **suportada** da lista de preferências do navegador é `pt*` (não
+suportadas, como `es`, são puladas); o botão `EN / PT` no cabeçalho troca na
+hora (escolha salva no navegador em `auditor.locale`). Os textos ficam em catálogos tipados em
+`frontend/src/i18n/` (`en.ts` é a referência; faltar chave no `pt-BR.ts` quebra o `tsc`) e um teste
+falha se surgir texto acentuado fora deles. O que vem do backend (perguntas, achados e resumo do LLM,
+status da varredura, erros da API, relatórios) ainda é em português — próxima feature: idioma da auditoria.
+
 ```bash
 # Terminal A — backend (porta padrão 8020, para onde o proxy do Vite aponta)
 auditor serve                               # http://127.0.0.1:8020
@@ -272,7 +280,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
 > Ou tudo de uma vez: `make dev` (sobe API + frontend Vite). O dev server do Vite faz **proxy**
-> de `/audits`, `/providers`, `/health` e `/fs` para o backend em **:8020** (mesma origem, sem
+> de `/audits`, `/providers`, `/defaults`, `/health` e `/fs` para o backend em **:8020** (mesma origem, sem
 > problema de CORS — ver `frontend/vite.config.ts`). Em produção, `vite build` gera `dist/`.
 > A porta foi **unificada em 8020** em código, Makefile, proxy do Vite e docs.
 
@@ -507,6 +515,7 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 | ~~G42~~ ✅ | Frontend: sem download de SARIF; `ChatDock` é placeholder; abrir auditoria zumbi do histórico → "Conexão perdida" (G31); comentário do `vite.config.ts` dizia que `auditor serve` serve o `dist/` (não serve). | 🟢 Baixo | Análise. | ✅ **Resolvido** — botão "Baixar SARIF"; ChatDock funcional sobre `POST /audits/{id}/chat` (só o relatório salvo, delimitado como dado não confiável; histórico só na tela; limites de pergunta/histórico/contexto). Spec: `.specs/features/report-chat-and-sarif/`. Os demais itens da linha já tinham sido resolvidos: auditoria zumbi no histórico (G31/G46) e o comentário do `vite.config.ts` (na análise inicial). |
 | ~~G48~~ ✅ | O agente não consultava nenhuma base de vulnerabilidades (o LLM julgava "dependências vulneráveis" de memória) e `.lock` era tratado como binário — `composer.lock`, `yarn.lock`, `poetry.lock`, `uv.lock` nunca eram lidos; runtime sem suporte não era detectado. | 🟠 Alto | Análise. | ✅ **Resolvido** — varredura determinística opt-in (`AUDITOR_VULN_SCAN`, `--vuln-scan`, `vuln_scan` na API/web): lockfiles npm/yarn/pnpm, Composer e Python → OSV.dev (um achado por pacote@versão, CVE/GHSA, versão corrigida; dev → info); runtime Node/PHP/Python → endoflife.date (EOL / abaixo do último patch); privados nunca consultados; status explícito no relatório; `.lock` legível. Decisão AD-003. Spec: `.specs/features/vuln-scan/`. |
 | ~~G49~~ ✅ | Com a varredura (G48) ligada, cada pacote vulnerável pesava como um achado de código: cinco pacotes transitivos `high` já zeravam a pontuação, que deixava de refletir a auditoria. | 🟡 Médio | Code review da G48. | ✅ **Resolvido** — o grupo de pacotes OSV tira no máximo 40 pontos (runtimes e LLM com peso cheio); detalhamento gravado no estado e exibido no relatório, CLI, síntese e chat. Spec: `.specs/features/dependency-score-cap/`. |
+| ~~G50~~ ✅ | Interface web só em português (≈250 textos fixos em 14 arquivos, `lang="pt-BR"`), sem caminho para outro idioma. | 🟡 Médio | Pedido do usuário. | ✅ **Resolvido** — catálogos tipados `en` (padrão) + `pt-BR` em `frontend/src/i18n/`, detecção pelo navegador, botão `EN / PT` com escolha salva, `<html lang>` dinâmico, plurais por `Intl.PluralRules`, guarda contra texto fora dos catálogos. Corrigido de passagem: o proxy do Vite não encaminhava `/defaults` (G48). **Pendente (próxima feature):** idioma da auditoria no backend — prompts/saída do LLM, relatórios, CLI, status e erros. Spec: `.specs/features/web-i18n/`. |
 
 **Prioridade sugerida:** ~~(1) G25+G26+G30~~ ✅ (spec: `.specs/features/search-code-scoping/`) → ~~(2) G29+G28~~ ✅
 (disco/retenção) → ~~(3) G31+G27 (API)~~ ✅ → ~~(4) G32+G33~~ ✅ → ~~(5) G37+G38+G36 (higiene/CI)~~ ✅ → restante.
@@ -533,8 +542,8 @@ testes pytest e 12/12 Vitest passando, `ruff` limpo, `tsc` limpo, `mypy` com 16 
 7. Se houver deploy multi-instância: persistir o log de eventos (ou reconstruir o SSE a partir do
    checkpointer) para o stream escalar além de um processo — G20 (aceitável no modo local atual).
 
-### Correções da análise de 2026-11-10 — concluídas (G25–G49 — todos resolvidos)
-G25–G49 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
+### Correções da análise de 2026-11-10 — concluídas (G25–G50 — todos resolvidos)
+G25–G50 ✅ resolvidos. Ver a tabela e a ordem de prioridade em [§10.3](#103-análise-técnica-de-2026-11-10-g25g43). Cada
 item será especificado e implementado pelo fluxo spec-driven (Specify → Design → Tasks → Execute),
 com teste de regressão.
 

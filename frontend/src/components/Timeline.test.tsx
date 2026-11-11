@@ -19,18 +19,18 @@ describe('Timeline — dimensão parcial (UI-01)', () => {
     render(<Timeline state={stateWith(ev('security', 'partial', 3))} onClarifySubmit={() => {}} />)
 
     const row = screen.getByText('security').closest('li') as HTMLElement
-    expect(row).toHaveTextContent('parcial — orçamento esgotado')
-    expect(row).toHaveTextContent('3 achados')
+    expect(row).toHaveTextContent('partial — step budget exhausted')
+    expect(row).toHaveTextContent('3 findings')
     expect(row).toHaveTextContent('✓')
-    expect(row).not.toHaveTextContent('investigando…')
+    expect(row).not.toHaveTextContent('investigating…')
   })
 
   it('dimensão concluída normalmente não mostra o rótulo de parcial', () => {
     render(<Timeline state={stateWith(ev('quality', 'done', 1))} onClarifySubmit={() => {}} />)
 
     const row = screen.getByText('quality').closest('li') as HTMLElement
-    expect(row).toHaveTextContent('1 achado')
-    expect(row).not.toHaveTextContent('parcial')
+    expect(row).toHaveTextContent('1 finding')
+    expect(row).not.toHaveTextContent('partial')
   })
 })
 
@@ -42,11 +42,11 @@ describe('Timeline — varredura de dependências (G48)', () => {
     let s = auditReducer(initialState, { type: 'START' })
     for (const n of ['discovery', 'plan_questions', 'clarify', 'planning', 'audit']) s = phase(s, n)
     const { unmount } = render(<Timeline state={s} onClarifySubmit={() => {}} />)
-    expect(screen.getByText('04 · Investigação').closest('li')).not.toHaveAttribute('data-status', 'done')
+    expect(screen.getByText('04 · Investigation').closest('li')).not.toHaveAttribute('data-status', 'done')
     unmount()
     s = phase(s, 'dependency_scan')
     render(<Timeline state={s} onClarifySubmit={() => {}} />)
-    expect(screen.getByText('04 · Investigação').closest('li')).toHaveAttribute('data-status', 'done')
+    expect(screen.getByText('04 · Investigation').closest('li')).toHaveAttribute('data-status', 'done')
   })
 })
 
@@ -56,6 +56,6 @@ describe('Timeline — retomada de auditoria anterior ao G48', () => {
     for (const node of ['discovery', 'plan_questions', 'clarify', 'planning', 'audit', 'verify'])
       s = auditReducer(s, { type: 'PHASE', event: { type: 'phase', node, label: node } } as never)
     render(<Timeline state={s} onClarifySubmit={() => {}} />)
-    expect(screen.getByText('04 · Investigação').closest('li')).toHaveAttribute('data-status', 'done')
+    expect(screen.getByText('04 · Investigation').closest('li')).toHaveAttribute('data-status', 'done')
   })
 })

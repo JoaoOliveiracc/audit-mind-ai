@@ -16,9 +16,9 @@ describe('ResultsPanel — exportação', () => {
   it('UI-01: oferece o download do SARIF', () => {
     render(<ResultsPanel auditId="a1" payload={payload} counts={{}} />)
 
-    const link = screen.getByRole('link', { name: 'Baixar SARIF' })
+    const link = screen.getByRole('link', { name: 'Download SARIF' })
     expect(link).toHaveAttribute('href', '/audits/a1/report?format=sarif')
-    expect(link).toHaveAttribute('download', 'auditoria.sarif')
+    expect(link).toHaveAttribute('download', 'audit.sarif')
   })
 })
 
@@ -38,13 +38,13 @@ describe('ResultsPanel — status da varredura de dependências (RPT-01)', () =>
         }}
       />,
     )
-    const status = screen.getByRole('status', { name: 'Dependências' })
+    const status = screen.getByRole('status', { name: 'Dependencies' })
     expect(status).toHaveTextContent('Varredura de dependências incompleta')
     expect(status).toHaveTextContent('querybatch: timeout')
   })
 
   it('auditoria sem o campo (anterior ao G48) não mostra a linha', () => {
     render(<ResultsPanel auditId="a1" payload={payload} counts={{}} />)
-    expect(screen.queryByRole('status', { name: 'Dependências' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('status', { name: 'Dependencies' })).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import type { AuditUIState, DimensionProgress } from '../state/auditReducer'
+import { noticeText, useI18n } from '../i18n/I18nProvider'
 import type { StackProfile } from '../types'
 import ClarifyForm from './ClarifyForm'
 
@@ -9,26 +10,27 @@ interface Props {
   onClarifySubmit: (answers: Record<string, string>) => void
 }
 
-/** Etapas fixas do pipeline — ordem espelha o grafo (por isso a numeração). */
+/** Etapas fixas do pipeline — ordem espelha o grafo (por isso a numeração); rótulos no catálogo. */
 const STEPS = [
-  { key: 'discovery', label: '01 · Descoberta', nodes: ['discovery'] },
-  { key: 'clarify', label: '02 · Esclarecimentos', nodes: ['plan_questions', 'clarify'] },
-  { key: 'planning', label: '03 · Plano', nodes: ['planning'] },
-  { key: 'audit', label: '04 · Investigação', nodes: ['audit', 'dependency_scan'] }, // G48: varredura de deps logo após o audit
-  { key: 'verify', label: '05 · Verificação de evidência', nodes: ['verify'] },
-  { key: 'adversarial', label: '06 · Contraprova adversarial', nodes: ['adversarial'] },
-  { key: 'synthesis', label: '07 · Consolidação', nodes: ['synthesis'] },
-  { key: 'report', label: '08 · Relatório', nodes: ['report'] },
+  { key: 'discovery', nodes: ['discovery'] },
+  { key: 'clarify', nodes: ['plan_questions', 'clarify'] },
+  { key: 'planning', nodes: ['planning'] },
+  { key: 'audit', nodes: ['audit', 'dependency_scan'] }, // G48: varredura de deps logo após o audit
+  { key: 'verify', nodes: ['verify'] },
+  { key: 'adversarial', nodes: ['adversarial'] },
+  { key: 'synthesis', nodes: ['synthesis'] },
+  { key: 'report', nodes: ['report'] },
 ] as const
 
 type StepStatus = 'pending' | 'active' | 'done'
 
 function StackChips({ profile }: { profile: StackProfile }) {
+  const { t } = useI18n()
   const chips = [
     ...Object.entries(profile.languages ?? {}).map(([lang, n]) => `${lang} (${n})`),
     ...(profile.frameworks ?? []),
     ...(profile.package_managers ?? []),
-    `${profile.total_files ?? 0} arquivos · ~${profile.total_loc ?? 0} LOC`,
+    t.timeline.filesAndLoc(profile.total_files ?? 0, profile.total_loc ?? 0),
   ]
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -45,6 +47,7 @@ function StackChips({ profile }: { profile: StackProfile }) {
 }
 
 function DimensionRow({ d }: { d: DimensionProgress }) {
+  const { t } = useI18n()
   const done = d.status === 'done' || d.status === 'partial' || d.status === 'empty'
   const icon = done ? '✓' : d.status === 'error' ? '✗' : '◌'
   const tone = d.status === 'partial'
@@ -63,16 +66,14 @@ function DimensionRow({ d }: { d: DimensionProgress }) {
           {d.index}/{d.total}
         </span>
         {(d.status === 'done' || d.status === 'partial') && (
-          <span className="eyebrow">
-            {d.findings_count ?? 0} achado{(d.findings_count ?? 0) === 1 ? '' : 's'}
-          </span>
+          <span className="eyebrow">{t.common.findings(d.findings_count ?? 0)}</span>
         )}
         {d.status === 'partial' && (
-          <span className="eyebrow !text-sev-medium">parcial — orçamento esgotado</span>
+          <span className="eyebrow !text-sev-medium">{t.timeline.partial}</span>
         )}
-        {d.status === 'empty' && <span className="eyebrow">sem resultado estruturado</span>}
-        {d.status === 'error' && <span className="eyebrow !text-sev-critical">falhou</span>}
-        {d.status === 'start' && <span className="eyebrow">investigando…</span>}
+        {d.status === 'empty' && <span className="eyebrow">{t.timeline.emptyResult}</span>}
+        {d.status === 'error' && <span className="eyebrow !text-sev-critical">{t.timeline.failed}</span>}
+        {d.status === 'start' && <span className="eyebrow">{t.timeline.investigating}</span>}
       </div>
       {d.status === 'error' && d.message && (
         <p className="mt-1 max-w-full whitespace-pre-wrap break-words rounded bg-[color:var(--ink)] p-2 font-mono text-xs leading-relaxed text-sev-critical">
@@ -109,6 +110,7 @@ function Entry({
 
 /** Conversa da auditoria como livro-razão: uma entrada por etapa do grafo. */
 export default function Timeline({ state, onClarifySubmit }: Props) {
+  const { t } = useI18n()
   const done = new Set(state.phasesDone)
 
   const stepStatus = (i: number): StepStatus => {
@@ -130,41 +132,42 @@ export default function Timeline({ state, onClarifySubmit }: Props) {
     <ol className="relative ml-1 space-y-5 border-l border-[color:var(--line)] pl-4">
       {STEPS.map((step, i) => {
         const status = stepStatus(i)
+        const label = t.timeline.steps[step.key]
         switch (step.key) {
           case 'discovery':
             return (
-              <Entry key={step.key} label={step.label} status={status}>
+              <Entry key={step.key} label={label} status={status}>
                 {state.stackProfile ? (
                   <>
-                    <p className="mb-2 text-sm">Stack detectada:</p>
+                    <p className="mb-2 text-sm">{t.timeline.stackDetected}</p>
                     <StackChips profile={state.stackProfile} />
                   </>
                 ) : (
                   <p className="text-sm text-[color:var(--dim)]">
-                    {status === 'done' ? 'Concluída.' : 'Varrendo o projeto…'}
+                    {status === 'done' ? t.timeline.done : t.timeline.scanning}
                   </p>
                 )}
               </Entry>
             )
           case 'clarify':
             return (
-              <Entry key={step.key} label={step.label} status={status}>
+              <Entry key={step.key} label={label} status={status}>
                 {state.pendingClarify ? (
                   <ClarifyForm questions={state.pendingClarify} onSubmit={onClarifySubmit} />
                 ) : state.clarifyAnswered ? (
                   <p className="text-sm text-[color:var(--dim)]">
-                    ✓ Respostas enviadas — retomando a auditoria.
+                    {t.timeline.answered}
                   </p>
                 ) : (
                   <p className="text-sm text-[color:var(--dim)]">
-                    {status === 'done' ? 'Sem perguntas — seguiu direto.' : 'Preparando perguntas…'}
+                    {status === 'done' ? t.timeline.noQuestions : t.timeline.preparingQuestions}
                   </p>
                 )}
               </Entry>
             )
           case 'audit':
             return (
-              <Entry key={step.key} label={step.label} status={status}>
+              <Entry key={step.key} label={label} status={status}>
                 {state.dimensionOrder.length > 0 ? (
                   <ul className="space-y-1.5">
                     {state.dimensionOrder.map((name) => (
@@ -172,69 +175,67 @@ export default function Timeline({ state, onClarifySubmit }: Props) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-[color:var(--dim)]">Preparando investigadores…</p>
+                  <p className="text-sm text-[color:var(--dim)]">{t.timeline.preparingInvestigators}</p>
                 )}
               </Entry>
             )
           case 'verify':
             return (
-              <Entry key={step.key} label={step.label} status={status}>
+              <Entry key={step.key} label={label} status={status}>
                 {state.verification ? (
                   <ul className="space-y-1 text-sm">
                     <li>
                       <span className="font-mono text-emerald-400">✓</span>{' '}
-                      {state.verification.verified} com evidência confirmada
+                      {t.timeline.verified(state.verification.verified)}
                     </li>
                     <li className="text-[color:var(--dim)]">
-                      {state.verification.unverified} sem evidência (confiança rebaixada)
+                      {t.timeline.unverified(state.verification.unverified)}
                     </li>
                     <li className="text-sev-critical">
-                      {state.verification.rejected} descartados (alucinação)
+                      {t.timeline.rejected(state.verification.rejected)}
                     </li>
                   </ul>
                 ) : (
                   <p className="text-sm text-[color:var(--dim)]">
-                    {status === 'done' ? 'Concluída.' : 'Conferindo evidências no disco…'}
+                    {status === 'done' ? t.timeline.done : t.timeline.checkingEvidence}
                   </p>
                 )}
               </Entry>
             )
           case 'adversarial':
             return (
-              <Entry key={step.key} label={step.label} status={status}>
+              <Entry key={step.key} label={label} status={status}>
                 {state.adversarial ? (
                   <ul className="space-y-1 text-sm">
                     <li>
                       <span className="font-mono text-emerald-400">✓</span>{' '}
-                      {state.adversarial.confirmed} confirmados pelo juiz
+                      {t.timeline.confirmed(state.adversarial.confirmed)}
                     </li>
                     <li className="text-[color:var(--dim)]">
-                      {state.adversarial.uncertain} incertos · de {state.adversarial.judged} julgados
+                      {t.timeline.uncertainOf(state.adversarial.uncertain, state.adversarial.judged)}
                     </li>
                     <li className="text-sev-critical">
-                      {state.adversarial.refuted} refutados (falso positivo)
+                      {t.timeline.refuted(state.adversarial.refuted)}
                     </li>
                   </ul>
                 ) : (
                   <p className="text-sm text-[color:var(--dim)]">
-                    {status === 'done'
-                      ? 'Sem contraprova adversarial (desativada — AUDITOR_ADVERSARIAL_VERIFY).'
-                      : 'Aguardando julgamento cético…'}
+                    {status === 'done' ? t.timeline.adversarialOff : t.timeline.awaitingJudge}
                   </p>
                 )}
               </Entry>
             )
           default:
-            return <Entry key={step.key} label={step.label} status={status} />
+            return <Entry key={step.key} label={label} status={status} />
         }
       })}
       {state.error && (
         <li className="relative pl-6">
           <span aria-hidden className="absolute left-0 top-1.5 h-2 w-2 rounded-full bg-sev-critical" />
-          <p className="eyebrow mb-1.5 !text-sev-critical">Falha</p>
+          <p className="eyebrow mb-1.5 !text-sev-critical">{t.timeline.failure}</p>
           <div className="card">
             <p className="whitespace-pre-wrap break-words text-sm text-sev-critical">
-              {state.error}
+              {noticeText(t, state.error)}
             </p>
           </div>
         </li>

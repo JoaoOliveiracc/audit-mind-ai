@@ -121,6 +121,13 @@ Vulnerable packages subtract at most **40 points** from the health score as a gr
 their full weight); the report and CLI show the share, e.g.
 `Pacotes vulneráveis (OSV): −40 pontos (5 pacote(s)) — teto de 40 aplicado; sem teto seriam −100`.
 
+### Web interface language
+
+The web UI (`make dev` → http://localhost:5173) is in English by default and in Brazilian
+Portuguese when the first supported language in the browser's preference list is `pt*`; the `EN / PT` button in the header switches languages
+without losing the current audit, and the choice is remembered (`auditor.locale` in the browser).
+Backend-generated content (LLM questions, findings, executive summary, reports) is still Portuguese.
+
 ### Choosing the LLM provider
 
 Install the provider package and select it via env or flag:

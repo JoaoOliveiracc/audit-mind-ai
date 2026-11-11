@@ -28,8 +28,8 @@
 
 ## Handoff
 
-- **Feature**: `.specs/features/dependency-score-cap/` (G49) — **Done** (T1–T7, code review applied, Verifier PASS 12/12, 17/18 mutants; M14 equivalent)
-- **Previous**: G48 vuln-scan Done (Verifier PASS); open user decisions: `.lock` in `search_code` (LOCK-05); G49 floor line (show nominal vs effective share when non-OSV ≥ 100)
-- **Next step**: user commits G49; optional follow-ups: web breakdown of the score, golden-output test for EXPL-02
+- **Feature**: `.specs/features/web-i18n/` (G50) — **Done** (T1–T8, code review 7/10 applied, Verifier PASS + fix loop 1; 132 frontend tests)
+- **Previous**: G49 Done (committed); open user decisions: `.lock` in `search_code` (LOCK-05); G49 floor line (nominal vs effective)
+- **Next step**: user commits G50; next feature: backend audit language (`language` → LLM prompts/output, MD/HTML reports, CLI, scan status, API errors, `NO_ANSWER`)
 - **Blockers**: none
 - **Branch**: feat/vuln-scan

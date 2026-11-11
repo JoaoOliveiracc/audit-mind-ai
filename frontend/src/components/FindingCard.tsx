@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { SEVERITY_LABEL } from '../state/score'
+import { labelOf, useI18n } from '../i18n/I18nProvider'
 import type { Finding } from '../types'
 
 const SEV_CLASS: Record<string, string> = {
@@ -13,6 +13,7 @@ const SEV_CLASS: Record<string, string> = {
 
 /** Um achado da auditoria: severidade, local, evidência e recomendação. */
 export default function FindingCard({ finding }: { finding: Finding }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const sev = SEV_CLASS[finding.severity] ?? SEV_CLASS.info
   const location = finding.file
@@ -30,14 +31,14 @@ export default function FindingCard({ finding }: { finding: Finding }) {
         <span
           className={`eyebrow mt-0.5 shrink-0 rounded border px-1.5 py-0.5 !text-current ${sev}`}
         >
-          {SEVERITY_LABEL[finding.severity] ?? finding.severity}
+          {labelOf(t.common.severity, finding.severity)}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">{finding.title}</span>
           <span className="eyebrow mt-0.5 block">
             {finding.dimension}
             {location && <span className="ml-2 normal-case">{location}</span>}
-            <span className="ml-2">confiança {(finding.confidence * 100).toFixed(0)}%</span>
+            <span className="ml-2">{t.finding.confidence((finding.confidence * 100).toFixed(0))}</span>
           </span>
         </span>
         <span className="eyebrow mt-1 shrink-0">{open ? '−' : '+'}</span>
@@ -52,7 +53,7 @@ export default function FindingCard({ finding }: { finding: Finding }) {
             </pre>
           )}
           <p>
-            <span className="eyebrow mr-2">Recomendação</span>
+            <span className="eyebrow mr-2">{t.finding.recommendation}</span>
             {finding.recommendation}
           </p>
         </div>

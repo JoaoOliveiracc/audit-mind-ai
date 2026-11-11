@@ -1,15 +1,7 @@
 import { useState } from 'react'
 
+import { labelOf, useI18n } from '../i18n/I18nProvider'
 import type { AuditSummary } from '../types'
-
-const STATUS_LABEL: Record<string, string> = {
-  started: 'iniciada',
-  running: 'em execução',
-  waiting_input: 'aguardando resposta',
-  interrupted: 'interrompida',
-  completed: 'concluída',
-  error: 'erro',
-}
 
 const STATUS_TONE: Record<string, string> = {
   completed: 'text-emerald-400',
@@ -31,11 +23,12 @@ interface Props {
 
 /** Histórico de auditorias locais — clique reabre os achados (ou o stream, se em curso). */
 export default function History({ audits, onOpen, onDelete, onResume, busyId = null }: Props) {
+  const { t } = useI18n()
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   if (audits.length === 0) return null
   return (
     <section className="space-y-2">
-      <p className="eyebrow">Histórico · {audits.length}</p>
+      <p className="eyebrow">{t.history.title(audits.length)}</p>
       <ul className="space-y-1.5">
         {audits.map((a) => (
           <li key={a.id} className="flex items-stretch gap-1.5">
@@ -51,7 +44,7 @@ export default function History({ audits, onOpen, onDelete, onResume, busyId = n
                 )}
               </span>
               <span className={`eyebrow shrink-0 ${STATUS_TONE[a.status] ?? ''}`}>
-                {STATUS_LABEL[a.status] ?? a.status}
+                {labelOf(t.common.status, a.status)}
                 {a.health_score != null && (
                   <span className="text-[color:var(--dim)]"> · {a.health_score}/100</span>
                 )}
@@ -61,12 +54,12 @@ export default function History({ audits, onOpen, onDelete, onResume, busyId = n
               <button
                 type="button"
                 className="btn shrink-0 !px-2 !text-xs"
-                aria-label={`Retomar auditoria de ${a.project_path}`}
-                title="Retomar do último checkpoint"
+                aria-label={t.history.resumeLabel(a.project_path)}
+                title={t.history.resumeTitle}
                 disabled={busyId === a.id}
                 onClick={() => onResume(a)}
               >
-                {busyId === a.id ? 'Retomando…' : 'Retomar'}
+                {busyId === a.id ? t.history.resuming : t.history.resume}
               </button>
             )}
             {confirmingId === a.id ? (
@@ -79,25 +72,25 @@ export default function History({ audits, onOpen, onDelete, onResume, busyId = n
                     onDelete(a)
                   }}
                 >
-                  Confirmar exclusão
+                  {t.history.confirmDelete}
                 </button>
                 <button
                   type="button"
                   className="btn !px-2 !text-xs"
                   onClick={() => setConfirmingId(null)}
                 >
-                  Cancelar
+                  {t.common.cancel}
                 </button>
               </span>
             ) : (
               <button
                 type="button"
                 className="btn shrink-0 !px-2 !text-xs"
-                aria-label={`Excluir auditoria de ${a.project_path}`}
-                title="Excluir auditoria (metadados, checkpoints e relatórios)"
+                aria-label={t.history.deleteLabel(a.project_path)}
+                title={t.history.deleteTitle}
                 onClick={() => setConfirmingId(a.id)}
               >
-                Excluir
+                {t.history.delete}
               </button>
             )}
           </li>

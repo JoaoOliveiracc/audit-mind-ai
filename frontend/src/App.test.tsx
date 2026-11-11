@@ -44,12 +44,12 @@ describe('App — retomada (UI-03)', () => {
     vi.mocked(client.resumeAudit).mockResolvedValue({ ...interrupted, status: 'running' })
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retomar auditoria de /proj/beta' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume audit of /proj/beta' }))
 
     await waitFor(() => expect(sse.connectAuditStream).toHaveBeenCalledTimes(1))
     expect(vi.mocked(sse.connectAuditStream).mock.calls[0][0]).toBe('i1')
     expect(client.resumeAudit).toHaveBeenCalledWith('i1')
-    expect(screen.queryByRole('button', { name: /^Retomar auditoria de / })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Resume audit of / })).not.toBeInTheDocument()
   })
 
   it('falha: mostra o erro da API e não conecta ao stream', async () => {
@@ -58,7 +58,7 @@ describe('App — retomada (UI-03)', () => {
     )
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retomar auditoria de /proj/beta' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume audit of /proj/beta' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Só auditorias interrompidas podem ser retomadas.',
@@ -80,17 +80,17 @@ describe('App — abrir interrompida/erro e Retomar em voo', () => {
     await openRow(interrupted)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Auditoria interrompida — use Retomar para continuar do último checkpoint.',
+      'Audit interrupted — use Resume to continue from the last checkpoint.',
     )
     expect(sse.connectAuditStream).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Retomar auditoria de /proj/beta' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resume audit of /proj/beta' })).toBeInTheDocument()
   })
 
   it('HIS-02: erro mostra a mensagem gravada e não conecta ao stream', async () => {
     await openRow({ ...interrupted, id: 'e1', status: 'error', project_path: '/proj/err',
       error: 'rate limit do provedor' })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Auditoria falhou: rate limit do provedor')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Audit failed: rate limit do provedor')
     expect(sse.connectAuditStream).not.toHaveBeenCalled()
     expect(screen.getByText('/proj/err')).toBeInTheDocument()   // continua no histórico
   })
@@ -98,7 +98,7 @@ describe('App — abrir interrompida/erro e Retomar em voo', () => {
   it('HIS-02: erro sem texto mostra mensagem genérica', async () => {
     await openRow({ ...interrupted, id: 'e2', status: 'error', project_path: '/proj/err2', error: null })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/^Auditoria falhou\.$/)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Audit failed\.$/)
   })
 
   it('HIS-03: Retomar fica desabilitado em voo e não dispara de novo', async () => {
@@ -106,10 +106,10 @@ describe('App — abrir interrompida/erro e Retomar em voo', () => {
     vi.mocked(client.resumeAudit).mockReturnValue(new Promise((r) => { finish = r }))
     render(<App />)
 
-    const btn = await screen.findByRole('button', { name: 'Retomar auditoria de /proj/beta' })
+    const btn = await screen.findByRole('button', { name: 'Resume audit of /proj/beta' })
     fireEvent.click(btn)
     await waitFor(() => expect(btn).toBeDisabled())
-    expect(btn).toHaveTextContent('Retomando…')
+    expect(btn).toHaveTextContent('Resuming…')
     fireEvent.click(btn)
     expect(client.resumeAudit).toHaveBeenCalledTimes(1)
 
@@ -123,11 +123,11 @@ describe('App — Retomar: recuperação e outra auditoria em voo (HIS-03)', () 
     vi.mocked(client.resumeAudit).mockRejectedValueOnce(new Error('credencial ausente'))
     render(<App />)
 
-    const btn = await screen.findByRole('button', { name: 'Retomar auditoria de /proj/beta' })
+    const btn = await screen.findByRole('button', { name: 'Resume audit of /proj/beta' })
     fireEvent.click(btn)
     expect(await screen.findByRole('alert')).toHaveTextContent('credencial ausente')
     await waitFor(() => expect(btn).not.toBeDisabled())
-    expect(btn).toHaveTextContent('Retomar')
+    expect(btn).toHaveTextContent('Resume')
 
     vi.mocked(client.resumeAudit).mockResolvedValueOnce({ ...interrupted, status: 'running' })
     fireEvent.click(btn)
@@ -140,8 +140,8 @@ describe('App — Retomar: recuperação e outra auditoria em voo (HIS-03)', () 
     vi.mocked(client.resumeAudit).mockReturnValue(new Promise(() => {}))   // fica em voo
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Retomar auditoria de /proj/beta' }))
-    const otherBtn = screen.getByRole('button', { name: 'Retomar auditoria de /proj/gama' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Resume audit of /proj/beta' }))
+    const otherBtn = screen.getByRole('button', { name: 'Resume audit of /proj/gama' })
     expect(otherBtn).not.toBeDisabled()          // só o da auditoria em voo fica desabilitado
     fireEvent.click(otherBtn)
 
@@ -163,16 +163,16 @@ describe('App — chat da auditoria aberta', () => {
     render(<App />)
 
     fireEvent.click(await screen.findByText('/proj/ok'))
-    const box = await screen.findByRole('textbox', { name: 'Pergunta sobre o resultado' })
+    const box = await screen.findByRole('textbox', { name: 'Question about the result' })
     fireEvent.change(box, { target: { value: 'Q?' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
     await waitFor(() => expect(client.chatAudit).toHaveBeenCalledWith('c1', 'Q?', []))
   })
 })
 
 describe('App — padrão do servidor para a varredura (vuln-scan UI-01)', () => {
-  const LABEL = 'Verificar dependências vulneráveis (envia nomes e versões ao OSV.dev)'
+  const LABEL = 'Check vulnerable dependencies (sends package names and versions to OSV.dev)'
 
   it('AUDITOR_VULN_SCAN=true no servidor deixa o checkbox marcado', async () => {
     vi.mocked(client.getDefaults).mockResolvedValue({ vuln_scan: true })

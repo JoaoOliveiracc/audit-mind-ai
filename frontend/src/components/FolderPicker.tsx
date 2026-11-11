@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { browseFs } from '../api/client'
-import type { BrowseEntry } from '../types'
+import { errorNotice, noticeText, useI18n } from '../i18n/I18nProvider'
+import type { BrowseEntry, Notice } from '../types'
 
 interface Props {
   /** Pasta inicial (ex.: último valor do campo, se já parecer um caminho). */
@@ -13,11 +14,12 @@ interface Props {
 /** Picker de pasta: navega o filesystem do backend (o navegador não expõe
  * caminhos absolutos de um `<input type=file>`, então a listagem vem do servidor). */
 export default function FolderPicker({ initialPath, onSelect, onClose }: Props) {
+  const { t } = useI18n()
   const [path, setPath] = useState<string | null>(null)
   const [parent, setParent] = useState<string | null>(null)
   const [entries, setEntries] = useState<BrowseEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Notice | null>(null)
 
   const load = (target?: string) => {
     setLoading(true)
@@ -28,7 +30,7 @@ export default function FolderPicker({ initialPath, onSelect, onClose }: Props) 
         setParent(r.parent)
         setEntries(r.entries)
       })
-      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err) => setError(errorNotice(err)))
       .finally(() => setLoading(false))
   }
 
@@ -50,24 +52,24 @@ export default function FolderPicker({ initialPath, onSelect, onClose }: Props) 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Escolher pasta do projeto"
+      aria-label={t.folder.dialogLabel}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div className="card flex w-full max-w-lg flex-col !p-0">
         <div className="border-b border-[color:var(--line)] p-4">
-          <p className="eyebrow mb-1">Escolher pasta</p>
+          <p className="eyebrow mb-1">{t.folder.title}</p>
           <p className="truncate font-mono text-sm" title={path ?? ''}>
             {path ?? '…'}
           </p>
         </div>
 
         <div className="max-h-80 overflow-y-auto p-2">
-          {loading && <p className="p-3 text-sm text-[color:var(--dim)]">Carregando…</p>}
+          {loading && <p className="p-3 text-sm text-[color:var(--dim)]">{t.folder.loading}</p>}
           {error && (
             <p className="p-3 text-sm text-sev-critical" role="alert">
-              {error}
+              {noticeText(t, error)}
             </p>
           )}
           {!loading && !error && (
@@ -95,7 +97,7 @@ export default function FolderPicker({ initialPath, onSelect, onClose }: Props) 
                 </li>
               ))}
               {entries.length === 0 && !parent && (
-                <li className="px-2 py-1.5 text-sm text-[color:var(--dim)]">Pasta vazia.</li>
+                <li className="px-2 py-1.5 text-sm text-[color:var(--dim)]">{t.folder.empty}</li>
               )}
             </ul>
           )}
@@ -103,7 +105,7 @@ export default function FolderPicker({ initialPath, onSelect, onClose }: Props) 
 
         <div className="flex items-center justify-end gap-2 border-t border-[color:var(--line)] p-3">
           <button type="button" className="btn" onClick={onClose}>
-            Cancelar
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -111,7 +113,7 @@ export default function FolderPicker({ initialPath, onSelect, onClose }: Props) 
             disabled={!path}
             onClick={() => path && onSelect(path)}
           >
-            Selecionar esta pasta
+            {t.folder.select}
           </button>
         </div>
       </div>
